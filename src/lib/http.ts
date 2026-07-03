@@ -71,6 +71,18 @@ export function isHtmlContentType(contentType: string): boolean {
   return type === "text/html" || type === "application/xhtml+xml";
 }
 
+export function isTextContentType(contentType: string): boolean {
+  const type = contentType.toLowerCase();
+  if (type.startsWith("text/")) {
+    return true;
+  }
+  return (
+    type === "application/json" ||
+    type === "application/ld+json" ||
+    type === "application/xml"
+  );
+}
+
 export async function httpGet(
   url: string,
   options: HttpGetOptions = {},

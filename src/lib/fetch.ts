@@ -22,6 +22,7 @@ import {
   type HttpGetFn,
 } from "./http.js";
 import { requireBaseDir } from "./kb.js";
+import { retrievePage } from "./retrieve.js";
 import {
   filenameFromUrlPath,
   sanitizeDomain,
@@ -59,8 +60,11 @@ export async function fetchPage(options: FetchOptions): Promise<FetchResult> {
   const log = options.log ?? (() => {});
   const get = options.httpGet ?? defaultHttpGet;
 
-  log(`Fetching ${options.sourceUrl}`);
-  const response = await get(options.sourceUrl);
+  const { response } = await retrievePage({
+    sourceUrl: options.sourceUrl,
+    httpGet: get,
+    log,
+  });
 
   if (!isHtmlContentType(response.contentType)) {
     throw new Error(

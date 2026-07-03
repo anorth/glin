@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
+  absolutizeHrefAndSrc,
+  cleanHtmlForRead,
+  collapseBlankLines,
   findLinkedMedia,
   injectOfflineCsp,
   OFFLINE_ARCHIVE_CSP,
   parseHtml,
   readCanonicalUrl,
   readTitle,
+  removeElements,
   rewriteImageTags,
   rewriteStylesheetLinks,
   serializeHtml,
@@ -192,5 +196,77 @@ describe("findLinkedMedia", () => {
       ]),
     );
     expect(media).toHaveLength(4);
+  });
+});
+
+describe("cleanHtmlForRead", () => {
+  const BASE = "http://example.test/index/";
+
+  it("removes script and style by default and absolutizes href/src", () => {
+    const html = `<!DOCTYPE html><html><head>
+<title>Index</title>
+<style>body { color: red; }</style>
+<script>alert(1)</script>
+<link rel="stylesheet" href="/site.css">
+</head><body>
+<a href="/page">Link</a>
+<img src="/photo.png">
+</body></html>`;
+
+    const { root, title } = cleanHtmlForRead(html, {
+      omitScripts: true,
+      omitStyles: true,
+      baseUrl: BASE,
+    });
+    const out = serializeHtml(root);
+
+    expect(title).toBe("Index");
+    expect(out).not.toContain("<script");
+    expect(out).not.toContain("<style");
+    expect(out).toContain('href="http://example.test/site.css"');
+    expect(out).toContain('href="http://example.test/page"');
+    expect(out).toContain('src="http://example.test/photo.png"');
+  });
+
+  it("preserves script and style when omit flags are false", () => {
+    const html =
+      "<html><head><style>x{}</style><script>y</script></head><body></body></html>";
+    const { root } = cleanHtmlForRead(html, {
+      omitScripts: false,
+      omitStyles: false,
+      baseUrl: BASE,
+    });
+    const out = serializeHtml(root);
+
+    expect(out).toContain("<style");
+    expect(out).toContain("<script");
+  });
+});
+
+describe("absolutizeHrefAndSrc", () => {
+  it("leaves data and mailto URLs unchanged", () => {
+    const root = parseHtml(
+      '<a href="mailto:a@b.c">x</a><img src="data:image/png;base64,abc">',
+    );
+    absolutizeHrefAndSrc(root, "http://example.test/");
+    const html = serializeHtml(root);
+    expect(html).toContain('href="mailto:a@b.c"');
+    expect(html).toContain('src="data:image/png;base64,abc"');
+  });
+});
+
+describe("removeElements", () => {
+  it("removes matching elements", () => {
+    const root = parseHtml("<div><script>a</script><p>x</p></div>");
+    removeElements(root, "script");
+    expect(serializeHtml(root)).not.toContain("<script");
+    expect(serializeHtml(root)).toContain("<p>x</p>");
+  });
+});
+
+describe("collapseBlankLines", () => {
+  it("collapses three or more consecutive newlines to one blank line", () => {
+    expect(collapseBlankLines("a\n\n\n\nb")).toBe("a\n\nb");
+    expect(collapseBlankLines("a\n\nb")).toBe("a\n\nb");
   });
 });

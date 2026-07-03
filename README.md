@@ -4,6 +4,8 @@ Command-line tool for building local, LLM-curated knowledge bases. glin handles 
 
 This repo is the **tool**. Knowledge bases themselves are separate data repositories.
 
+Inspired by Karpathy: https://x.com/karpathy/status/2039805659525644595
+
 ## Requirements
 
 Node.js 22 or later.

@@ -175,7 +175,65 @@ export function injectOfflineCsp(root: HTMLElement): void {
 
 export function serializeHtml(root: HTMLElement): string {
   // Serialized output reflects the parser's HTML model, not the original response bytes.
-  return root.toString();
+  return collapseBlankLines(root.toString());
+}
+
+/** Collapse runs of blank lines left by parse/serialize round-trips. */
+export function collapseBlankLines(html: string): string {
+  return html.replace(/\n{3,}/g, "\n\n");
+}
+
+export function removeElements(root: HTMLElement, tagName: string): void {
+  for (const el of [...root.querySelectorAll(tagName)]) {
+    el.remove();
+  }
+}
+
+export function absolutizeHrefAndSrc(root: HTMLElement, baseUrl: string): void {
+  for (const el of root.querySelectorAll("[href], [src]")) {
+    for (const attr of ["href", "src"] as const) {
+      const value = el.getAttribute(attr);
+      if (value && isAbsolutizableUrl(value)) {
+        el.setAttribute(attr, resolveUrl(value, baseUrl));
+      }
+    }
+  }
+}
+
+export interface CleanHtmlForReadOptions {
+  omitScripts: boolean;
+  omitStyles: boolean;
+  baseUrl: string;
+}
+
+export function cleanHtmlForRead(
+  html: string,
+  options: CleanHtmlForReadOptions,
+): { root: HTMLElement; title: string | null } {
+  const root = parseHtml(html);
+  if (options.omitScripts) {
+    removeElements(root, "script");
+  }
+  if (options.omitStyles) {
+    removeElements(root, "style");
+  }
+  absolutizeHrefAndSrc(root, options.baseUrl);
+  return { root, title: readTitle(root) };
+}
+
+function isAbsolutizableUrl(url: string): boolean {
+  const trimmed = url.trim();
+  if (!trimmed) {
+    return false;
+  }
+  const lower = trimmed.toLowerCase();
+  return (
+    !lower.startsWith("data:") &&
+    !lower.startsWith("blob:") &&
+    !lower.startsWith("javascript:") &&
+    !lower.startsWith("mailto:") &&
+    !lower.startsWith("tel:")
+  );
 }
 
 export function findLinkedMedia(
