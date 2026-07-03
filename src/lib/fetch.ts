@@ -3,11 +3,10 @@ import { existsSync } from "node:fs";
 import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
+  cleanHtml,
   findLinkedMedia,
   injectOfflineCsp,
-  parseHtml,
   readCanonicalUrl,
-  readTitle,
   rewriteImageTags,
   rewriteStylesheetLinks,
   serializeHtml,
@@ -19,6 +18,7 @@ import {
   decodeTextBody,
   httpGet as defaultHttpGet,
   isHtmlContentType,
+  parseMediaType,
   type HttpGetFn,
 } from "./http.js";
 import { requireBaseDir } from "./kb.js";
@@ -41,6 +41,8 @@ export interface FetchMeta {
   images: number;
   stylesheets: number;
   linked_media: LinkedMediaItem[];
+  scripts_stripped: number;
+  styles_stripped: number;
 }
 
 export interface FetchResult extends FetchMeta {
@@ -51,13 +53,15 @@ export interface FetchOptions {
   sourceUrl: string;
   group?: string;
   baseDir?: string;
+  omitScripts?: boolean;
+  omitStyles?: boolean;
   log?: (message: string) => void;
   httpGet?: HttpGetFn;
 }
 
 export async function fetchPage(options: FetchOptions): Promise<FetchResult> {
   const kbRoot = requireBaseDir(options.baseDir);
-  const log = options.log ?? (() => {});
+  const log = options.log ?? (() => { });
   const get = options.httpGet ?? defaultHttpGet;
 
   const { response } = await retrievePage({
@@ -126,10 +130,12 @@ export async function fetchPage(options: FetchOptions): Promise<FetchResult> {
       downloaded,
     });
 
-    const root = parseHtml(html);
+    const { root, title, scriptsStripped, stylesStripped } = cleanHtml(html, {
+      omitScripts: options.omitScripts ?? true,
+      omitStyles: options.omitStyles ?? false,
+      baseUrl: response.url,
+    });
 
-    // Read mechanical metadata from the parsed page before asset mutation.
-    const title = readTitle(root);
     const canonical_url = readCanonicalUrl(root, response.url);
     const linked_media = findLinkedMedia(root, response.url);
 
@@ -157,6 +163,8 @@ export async function fetchPage(options: FetchOptions): Promise<FetchResult> {
       images: images.localizedCount,
       stylesheets: stylesheets.localizedCount,
       linked_media,
+      scripts_stripped: scriptsStripped,
+      styles_stripped: stylesStripped,
     };
 
     await writeFile(join(stagingPath, "index.html"), serializeHtml(root), "utf8");
@@ -257,8 +265,7 @@ function archiveDirectory(
 }
 
 function extensionFromImageContentType(contentType: string): string | null {
-  const type = contentType.split(";")[0]?.trim().toLowerCase();
-  switch (type) {
+  switch (parseMediaType(contentType)) {
     case "image/jpeg":
       return "jpg";
     case "image/png":

@@ -4,17 +4,7 @@ import {
   formatReadMetadata,
   readPage,
 } from "../lib/read.js";
-
-function parseYesNo(value: string): boolean {
-  const lower = value.toLowerCase();
-  if (lower === "yes") {
-    return true;
-  }
-  if (lower === "no") {
-    return false;
-  }
-  throw new Error(`expected yes or no, got ${value}`);
-}
+import { parseYesNo } from "./options.js";
 
 export function registerReadCommand(program: Command): void {
   program
@@ -25,7 +15,8 @@ export function registerReadCommand(program: Command): void {
 no knowledge base required.
 
 Uses the same plain HTTP retrieval as fetch (redirects, user-agent, URL handling).
-For HTML, mechanically cleans the document: removes <script> and <style> by default,
+For HTML, mechanically cleans the document: removes executable <script> and <style> by default
+(data scripts such as JSON blocks are always kept),
 and resolves relative href/src to absolute URLs against the final URL after redirects.
 Other text types (plain text, markdown, JSON) are returned verbatim. Binary responses
 (e.g. PDF) are rejected.
@@ -36,7 +27,7 @@ title) goes to stderr.`,
     .argument("<url>", "URL to read")
     .option(
       "--omit-scripts <yes|no>",
-      "Remove <script> elements (default yes)",
+      "Remove executable <script> elements; data scripts (JSON, etc.) are always kept (default yes)",
       "yes",
     )
     .option(

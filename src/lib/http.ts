@@ -35,20 +35,22 @@ export type HttpGetFn = (
   options?: HttpGetOptions,
 ) => Promise<HttpResponse>;
 
+/** Bare media type before any `;params`, lowercased and trimmed. "" if absent. */
+export function parseMediaType(value: string | null | undefined): string {
+  return value?.split(";")[0]?.trim().toLowerCase() ?? "";
+}
+
 export function parseContentType(header: string | null): {
   mediaType: string;
   charset: string;
 } {
   const value = header ?? "application/octet-stream";
-  const parts = value.split(";").map((part) => part.trim());
-  const mediaType =
-    parts[0]?.split("/").length === 2
-      ? parts[0].toLowerCase()
-      : "application/octet-stream";
+  const candidate = parseMediaType(value);
+  const mediaType = candidate.split("/").length === 2 ? candidate : "application/octet-stream";
 
   let charset = "utf-8";
-  for (const part of parts.slice(1)) {
-    const match = /^charset=(.+)$/i.exec(part);
+  for (const part of value.split(";").slice(1)) {
+    const match = /^charset=(.+)$/i.exec(part.trim());
     if (match?.[1]) {
       charset = match[1].replace(/^["']|["']$/g, "");
       break;

@@ -1,18 +1,19 @@
 import { describe, expect, it } from "vitest";
 import {
   absolutizeHrefAndSrc,
-  cleanHtmlForRead,
+  cleanHtml,
   collapseBlankLines,
   findLinkedMedia,
   injectOfflineCsp,
+  isExecutableScript,
   OFFLINE_ARCHIVE_CSP,
   parseHtml,
   readCanonicalUrl,
   readTitle,
-  removeElements,
   rewriteImageTags,
   rewriteStylesheetLinks,
   serializeHtml,
+  stripExecutableScripts,
 } from "./html.js";
 
 const BASE_URL = "http://127.0.0.1:8080/blog/post/";
@@ -199,21 +200,90 @@ describe("findLinkedMedia", () => {
   });
 });
 
-describe("cleanHtmlForRead", () => {
+describe("isExecutableScript", () => {
+  it("treats src, missing type, and JS types as executable", () => {
+    expect(isExecutableScript(parseHtml('<script src="/app.js">').querySelector("script")!)).toBe(
+      true,
+    );
+    expect(isExecutableScript(parseHtml("<script>alert(1)</script>").querySelector("script")!)).toBe(
+      true,
+    );
+    expect(isExecutableScript(parseHtml('<script type="">x</script>').querySelector("script")!)).toBe(
+      true,
+    );
+    expect(
+      isExecutableScript(
+        parseHtml('<script type="text/javascript">x</script>').querySelector("script")!,
+      ),
+    ).toBe(true);
+    expect(
+      isExecutableScript(
+        parseHtml('<script type="module">import x</script>').querySelector("script")!,
+      ),
+    ).toBe(true);
+  });
+
+  it("treats non-JS script types as data", () => {
+    expect(
+      isExecutableScript(
+        parseHtml('<script type="application/json">{}</script>').querySelector("script")!,
+      ),
+    ).toBe(false);
+    expect(
+      isExecutableScript(
+        parseHtml('<script type="application/ld+json">{}</script>').querySelector("script")!,
+      ),
+    ).toBe(false);
+    expect(
+      isExecutableScript(
+        parseHtml('<script type="text/template"><p></script>').querySelector("script")!,
+      ),
+    ).toBe(false);
+  });
+
+  it("treats a non-JS type as data even when src is set, since the browser never fetches it", () => {
+    expect(
+      isExecutableScript(
+        parseHtml('<script type="application/json" src="data.json"></script>').querySelector(
+          "script",
+        )!,
+      ),
+    ).toBe(false);
+  });
+});
+
+describe("stripExecutableScripts", () => {
+  it("removes executable scripts but keeps data scripts", () => {
+    const root = parseHtml(`<html><body>
+<script>plugin()</script>
+<script type="application/json" id="__NEXT_DATA__">{"title":"Article"}</script>
+<script src="/bundle.js"></script>
+</body></html>`);
+    expect(stripExecutableScripts(root)).toBe(2);
+    const out = serializeHtml(root);
+    expect(out).not.toContain("plugin()");
+    expect(out).not.toContain("bundle.js");
+    expect(out).toContain('type="application/json"');
+    expect(out).toContain("__NEXT_DATA__");
+  });
+});
+
+describe("cleanHtml", () => {
   const BASE = "http://example.test/index/";
 
-  it("removes script and style by default and absolutizes href/src", () => {
+  it("removes executable script and style by default and absolutizes href/src", () => {
     const html = `<!DOCTYPE html><html><head>
 <title>Index</title>
 <style>body { color: red; }</style>
 <script>alert(1)</script>
+<script type="application/json">{"x":1}</script>
 <link rel="stylesheet" href="/site.css">
 </head><body>
 <a href="/page">Link</a>
 <img src="/photo.png">
 </body></html>`;
 
-    const { root, title } = cleanHtmlForRead(html, {
+    const { root, title, scriptsStripped, stylesStripped } = cleanHtml(html, {
       omitScripts: true,
       omitStyles: true,
       baseUrl: BASE,
@@ -221,7 +291,10 @@ describe("cleanHtmlForRead", () => {
     const out = serializeHtml(root);
 
     expect(title).toBe("Index");
-    expect(out).not.toContain("<script");
+    expect(scriptsStripped).toBe(1);
+    expect(stylesStripped).toBe(1);
+    expect(out).not.toContain("alert(1)");
+    expect(out).toContain('type="application/json"');
     expect(out).not.toContain("<style");
     expect(out).toContain('href="http://example.test/site.css"');
     expect(out).toContain('href="http://example.test/page"');
@@ -231,7 +304,7 @@ describe("cleanHtmlForRead", () => {
   it("preserves script and style when omit flags are false", () => {
     const html =
       "<html><head><style>x{}</style><script>y</script></head><body></body></html>";
-    const { root } = cleanHtmlForRead(html, {
+    const { root } = cleanHtml(html, {
       omitScripts: false,
       omitStyles: false,
       baseUrl: BASE,
@@ -252,15 +325,6 @@ describe("absolutizeHrefAndSrc", () => {
     const html = serializeHtml(root);
     expect(html).toContain('href="mailto:a@b.c"');
     expect(html).toContain('src="data:image/png;base64,abc"');
-  });
-});
-
-describe("removeElements", () => {
-  it("removes matching elements", () => {
-    const root = parseHtml("<div><script>a</script><p>x</p></div>");
-    removeElements(root, "script");
-    expect(serializeHtml(root)).not.toContain("<script");
-    expect(serializeHtml(root)).toContain("<p>x</p>");
   });
 });
 

@@ -1,4 +1,4 @@
-import { cleanHtmlForRead, serializeHtml } from "./html.js";
+import { cleanHtml, serializeHtml } from "./html.js";
 import {
   decodeTextBody,
   isHtmlContentType,
@@ -49,7 +49,7 @@ export async function readPage(options: ReadPageOptions): Promise<ReadPageResult
   const text = decodeTextBody(response.body, response.charset);
 
   if (isHtmlContentType(contentType)) {
-    const { root, title } = cleanHtmlForRead(text, {
+    const { root, title } = cleanHtml(text, {
       omitScripts: options.omitScripts ?? true,
       omitStyles: options.omitStyles ?? true,
       baseUrl: response.url,

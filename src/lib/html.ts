@@ -1,4 +1,5 @@
 import { parse, type HTMLElement } from "node-html-parser";
+import { parseMediaType } from "./http.js";
 
 const PDF_EXT = /\.pdf(?:$|[?#])/i;
 const AUDIO_EXT = /\.(?:mp3|wav|ogg|m4a|aac|flac|opus|weba)(?:$|[?#])/i;
@@ -183,12 +184,6 @@ export function collapseBlankLines(html: string): string {
   return html.replace(/\n{3,}/g, "\n\n");
 }
 
-export function removeElements(root: HTMLElement, tagName: string): void {
-  for (const el of [...root.querySelectorAll(tagName)]) {
-    el.remove();
-  }
-}
-
 export function absolutizeHrefAndSrc(root: HTMLElement, baseUrl: string): void {
   for (const el of root.querySelectorAll("[href], [src]")) {
     for (const attr of ["href", "src"] as const) {
@@ -200,25 +195,72 @@ export function absolutizeHrefAndSrc(root: HTMLElement, baseUrl: string): void {
   }
 }
 
-export interface CleanHtmlForReadOptions {
+const EXECUTABLE_SCRIPT_TYPES = new Set([
+  "text/javascript",
+  "application/javascript",
+  "module",
+]);
+
+/** Whether the browser would execute this script element (vs. carry data only). */
+export function isExecutableScript(el: HTMLElement): boolean {
+  if (el.tagName.toLowerCase() !== "script") {
+    return false;
+  }
+  // The browser's script-processing algorithm gates on type before src: a non-JS
+  // type (e.g. application/json) is inert and never fetched or run, src or not.
+  const type = parseMediaType(el.getAttribute("type"));
+  return type === "" || EXECUTABLE_SCRIPT_TYPES.has(type);
+}
+
+/** Remove executable scripts; data scripts (JSON, templates, etc.) are always kept. */
+export function stripExecutableScripts(root: HTMLElement): number {
+  let count = 0;
+  for (const el of [...root.querySelectorAll("script")]) {
+    if (isExecutableScript(el)) {
+      el.remove();
+      count += 1;
+    }
+  }
+  return count;
+}
+
+export function stripStyleElements(root: HTMLElement): number {
+  let count = 0;
+  for (const el of [...root.querySelectorAll("style")]) {
+    el.remove();
+    count += 1;
+  }
+  return count;
+}
+
+export interface CleanHtmlOptions {
   omitScripts: boolean;
   omitStyles: boolean;
   baseUrl: string;
 }
 
-export function cleanHtmlForRead(
+export interface CleanHtmlResult {
+  root: HTMLElement;
+  title: string | null;
+  scriptsStripped: number;
+  stylesStripped: number;
+}
+
+export function cleanHtml(
   html: string,
-  options: CleanHtmlForReadOptions,
-): { root: HTMLElement; title: string | null } {
+  options: CleanHtmlOptions,
+): CleanHtmlResult {
   const root = parseHtml(html);
+  let scriptsStripped = 0;
+  let stylesStripped = 0;
   if (options.omitScripts) {
-    removeElements(root, "script");
+    scriptsStripped = stripExecutableScripts(root);
   }
   if (options.omitStyles) {
-    removeElements(root, "style");
+    stylesStripped = stripStyleElements(root);
   }
   absolutizeHrefAndSrc(root, options.baseUrl);
-  return { root, title: readTitle(root) };
+  return { root, title: readTitle(root), scriptsStripped, stylesStripped };
 }
 
 function isAbsolutizableUrl(url: string): boolean {

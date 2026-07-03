@@ -20,6 +20,8 @@ const PAGE_HTML = `<!DOCTYPE html>
 <title>Test Article</title>
 <link rel="stylesheet" href="/site.css">
 <link rel="canonical" href="/blog/post/">
+<script>window.__plugin = function(){}</script>
+<script type="application/json" id="__NEXT_DATA__">{"props":{"pageProps":{"title":"Test Article"}}}</script>
 </head><body>
 <img src="/photo.png" alt="test">
 <a href="/paper.pdf">PDF</a>
@@ -106,6 +108,10 @@ describe("fetchPage", () => {
     expect(indexHtml).toContain("font-src http: https: data:");
     expect(indexHtml).toContain("script-src 'none'");
 
+    expect(indexHtml).not.toContain("window.__plugin");
+    expect(indexHtml).toContain('id="__NEXT_DATA__"');
+    expect(indexHtml).toContain("application/json");
+
     const images = await readdir(join(archivePath, "images"));
     expect(images).toContain("photo.png");
 
@@ -114,6 +120,8 @@ describe("fetchPage", () => {
 
     const meta = JSON.parse(await readFile(join(archivePath, "meta.json"), "utf8"));
     expect(meta.stylesheets).toBe(1);
+    expect(meta.scripts_stripped).toBe(1);
+    expect(meta.styles_stripped).toBe(0);
     expect(meta.archive_path).toBeUndefined();
 
     const parentEntries = await readdir(join(baseDir, "raw", "example.test", "myblog"));
@@ -131,6 +139,70 @@ describe("fetchPage", () => {
     expect(log.mock.calls.some(([message]) => message.includes("replacing existing archive"))).toBe(
       true,
     );
+  });
+
+  it("keeps executable scripts when --omit-scripts=no", async () => {
+    const baseDir = await setupKb();
+
+    const result = await fetchPage({
+      sourceUrl: PAGE_URL,
+      baseDir,
+      omitScripts: false,
+      httpGet: fixtureHttpGet(),
+      log: () => {},
+    });
+
+    expect(result.scripts_stripped).toBe(0);
+    const indexHtml = await readFile(
+      join(baseDir, result.archive_path, "index.html"),
+      "utf8",
+    );
+    expect(indexHtml).toContain("window.__plugin");
+  });
+
+  it("strips inline styles when --omit-styles=yes", async () => {
+    const baseDir = await setupKb();
+    const htmlWithStyle = PAGE_HTML.replace(
+      "<link rel=\"stylesheet\"",
+      "<style>body{color:red}</style><link rel=\"stylesheet\"",
+    );
+
+    const result = await fetchPage({
+      sourceUrl: PAGE_URL,
+      baseDir,
+      omitStyles: true,
+      httpGet: mockHttpGet({
+        [PAGE_URL]: {
+          url: PAGE_URL,
+          status: 200,
+          contentType: "text/html",
+          charset: "utf-8",
+          body: Buffer.from(htmlWithStyle),
+        },
+        [IMAGE_URL]: {
+          url: IMAGE_URL,
+          status: 200,
+          contentType: "image/png",
+          charset: "utf-8",
+          body: PNG,
+        },
+        [CSS_URL]: {
+          url: CSS_URL,
+          status: 200,
+          contentType: "text/css",
+          charset: "utf-8",
+          body: Buffer.from("body { color: red; }"),
+        },
+      }),
+      log: () => {},
+    });
+
+    expect(result.styles_stripped).toBe(1);
+    const indexHtml = await readFile(
+      join(baseDir, result.archive_path, "index.html"),
+      "utf8",
+    );
+    expect(indexHtml).not.toContain("body{color:red}");
   });
 
   it("rejects non-HTML responses", async () => {

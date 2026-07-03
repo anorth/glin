@@ -13,6 +13,7 @@ const PAGE_HTML = `<!DOCTYPE html><html><head>
 <title>Index Page</title>
 <style>.x{}</style>
 <script>noise()</script>
+<script type="application/json" id="data">{"body":"Article text"}</script>
 </head><body>
 <a href="/articles/one">One</a>
 <img src="/img.png">
@@ -45,7 +46,9 @@ describe("readPage", () => {
 
     expect(result.final_url).toBe(FINAL_URL);
     expect(result.title).toBe("Index Page");
-    expect(result.content).not.toContain("<script");
+    expect(result.content).not.toContain("noise()");
+    expect(result.content).toContain('type="application/json"');
+    expect(result.content).toContain('"body":"Article text"');
     expect(result.content).not.toContain("<style");
     expect(result.content).toContain('href="http://example.test/articles/one"');
     expect(result.content).toContain('src="http://example.test/img.png"');
