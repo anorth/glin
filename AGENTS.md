@@ -14,9 +14,11 @@ A knowledge base is a directory of plaintext files, with three major directories
 
 An LLM agent (via Pi) does the reading, writing, and reorganizing; a human rarely edits the files.
 Retrieval is structural — index files, frontmatter summaries, links, grep, search.
-The authoritative description of this model, the frontmatter schema, and the conventions lives in `templates/SYSTEM.md`,
+The authoritative description of this model, the frontmatter schema, and the conventions lives in `templates/`,
 which glin installs into every knowledge base.
-Read it for the full picture.
+Read them for the full picture.
+
+For further details of design and decisions, refer to the `doc/` directory.
 
 ## Architecture
 
