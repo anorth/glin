@@ -61,3 +61,7 @@ Keep subcommands as thin wrappers over `lib/` functions, so the same logic is re
 - **Convention over configuration.** Hardcode the KB skeleton (`raw/ sources/ wiki/ assets/`); do not parameterize layout or frontmatter yet. Promote something to config only when a real second KB needs it to differ.
 - **Language-agnostic invocation.** The agent calls glin by shelling out, so every command must be usable and legible from a plain terminal, with a clear `--help`.
 - **Local dev:** `npm link` to put `glin` on PATH; edits go live without reinstalling.
+
+## Development guidance
+
+- Prefer few dependencies, ask me before adding any.

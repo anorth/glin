@@ -16,7 +16,11 @@ const program = new Command();
 program
   .name("glin")
   .description("Build local, LLM-curated knowledge bases")
-  .version(pkg.version);
+  .version(pkg.version)
+  .option(
+    "-b, --base-dir <dir>",
+    "Knowledge base root containing raw/ (default: current working directory)",
+  );
 
 registerFetchCommand(program);
 registerInitCommand(program);
