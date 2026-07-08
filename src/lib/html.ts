@@ -181,7 +181,9 @@ export function serializeHtml(root: HTMLElement): string {
 
 /** Collapse runs of blank lines left by parse/serialize round-trips. */
 export function collapseBlankLines(html: string): string {
-  return html.replace(/\n{3,}/g, "\n\n");
+  const normalized = html.replace(/\r\n?/g, "\n");
+  const stripped = normalized.replace(/^\s+$/gm, "");
+  return stripped.replace(/\n{2,}/g, "\n");
 }
 
 export function absolutizeHrefAndSrc(root: HTMLElement, baseUrl: string): void {

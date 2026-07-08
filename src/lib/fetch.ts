@@ -2,34 +2,11 @@ import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import {
-  cleanHtml,
-  findLinkedMedia,
-  injectOfflineCsp,
-  readCanonicalUrl,
-  rewriteImageTags,
-  rewriteStylesheetLinks,
-  serializeHtml,
-  type LinkedMediaItem,
-} from "./html.js";
-import {
-  ACCEPT_CSS,
-  ACCEPT_IMAGE,
-  decodeTextBody,
-  httpGet as defaultHttpGet,
-  isHtmlContentType,
-  parseMediaType,
-  type HttpGetFn,
-} from "./http.js";
+import { cleanHtml, findLinkedMedia, injectOfflineCsp, readCanonicalUrl, rewriteImageTags, rewriteStylesheetLinks, serializeHtml, type LinkedMediaItem, } from "./html.js";
+import { ACCEPT_CSS, ACCEPT_IMAGE, decodeTextBody, httpGet as defaultHttpGet, isHtmlContentType, parseMediaType, type HttpGetFn, } from "./http.js";
 import { requireBaseDir } from "./kb.js";
 import { retrievePage } from "./retrieve.js";
-import {
-  filenameFromUrlPath,
-  sanitizeDomain,
-  sanitizePathComponent,
-  slugFromUrl,
-  uniquifyFilename,
-} from "./sanitize.js";
+import { filenameFromUrlPath, sanitizeDomain, sanitizePathComponent, slugFromUrl, uniquifyFilename, } from "./sanitize.js";
 
 export interface FetchMeta {
   source_url: string;
