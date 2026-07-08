@@ -54,6 +54,11 @@ institution with several publications nests a level deeper, a standalone paper
 may sit directly in `sources/`; depth is variable, used only as far as the material
 needs. The internal shape of `wiki/` is per-KB.
 
+## Raw archives
+
+The `raw/` directory contains the raw HTML and metadata of the archived articles, typically structured as `<domain>/[<group>/]<slug>/`.
+There may be many raw articles and many, many files within each article directory, so traverse the `raw/` directory carefully. Use patterns and globs to limit output.
+
 ## Node types
 
 Every markdown node declares `type`:
@@ -122,12 +127,21 @@ and roughly when to reach for it.
 
 - `glin fetch <url>` — download a page and its images into `raw/`, rewriting image
   references to local copies.
+- `glin read <url>` — fetch a page over HTTP and print cleaned content to stdout
+  (no disk writes); use for index/listing pages you only need to inspect.
 - `glin search <query>` — query the search index over the KB to find relevant
   content.
 - `glin reindex` — regenerate `index.md` navigation files from frontmatter
   summaries.
 - `glin backlinks` — rebuild the backlinks cache (which nodes cite or link to a
   given node).
+
+The glin Pi extension (when installed) also provides:
+
+- `subagent({ agent, task, files })` — delegate a task to a specialized subagent with an
+  isolated context and a pinned model. Files may be inlined into the prompt.
+  Use `agent: "extract"` to turn a `raw/` archive into a faithful `sources/` node (see the extract skill).
+  Do not perform extraction yourself when this tool is available. It will be faster and more accurate.
 
 Backlinks and the search index are regenerable caches derived from the files; the
 files are always authoritative.

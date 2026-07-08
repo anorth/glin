@@ -8,13 +8,15 @@
   },
   "files": [
     "dist",
-    "templates"
+    "templates",
+    "extension"
   ],
   "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch",
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch",
     "lint": "eslint .",
     "test": "vitest run",
+    "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run build"
   },
   "engines": {
@@ -23,9 +25,14 @@
   "license": "MIT",
   "dependencies": {
     "commander": "^14.0.0",
-    "node-html-parser": "^8.0.4"
+    "node-html-parser": "^8.0.4",
+    "typebox": "^1.1.38"
   },
   "devDependencies": {
+    "@earendil-works/pi-agent-core": "^0.80.3",
+    "@earendil-works/pi-ai": "^0.80.3",
+    "@earendil-works/pi-coding-agent": "^0.80.3",
+    "@earendil-works/pi-tui": "^0.80.3",
     "@eslint/js": "^9.30.0",
     "@types/node": "^22.0.0",
     "eslint": "^9.30.0",
