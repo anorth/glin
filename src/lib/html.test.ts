@@ -329,29 +329,29 @@ describe("absolutizeHrefAndSrc", () => {
 });
 
 describe("collapseBlankLines", () => {
-  it("collapses three or more consecutive newlines to one blank line", () => {
-    expect(collapseBlankLines("a\n\n\n\nb")).toBe("a\n\nb");
-    expect(collapseBlankLines("a\n\nb")).toBe("a\n\nb");
+  it("collapses two or more consecutive newlines to one", () => {
+    expect(collapseBlankLines("a\n\n\n\nb")).toBe("a\nb");
+    expect(collapseBlankLines("a\n\nb")).toBe("a\nb");
   });
 
   it("strips trailing spaces on blank lines before collapse", () => {
-    expect(collapseBlankLines("a\n   \n   \n   \nb")).toBe("a\n\nb");
+    expect(collapseBlankLines("a\n   \n   \n   \nb")).toBe("a\nb");
   });
 
   it("strips mixed trailing tabs and spaces on blank lines", () => {
-    expect(collapseBlankLines("a\n \t \n\t \n \t \nb")).toBe("a\n\nb");
+    expect(collapseBlankLines("a\n \t \n\t \n \t \nb")).toBe("a\nb");
   });
 
   it("strips trailing whitespace before collapse, not after", () => {
-    expect(collapseBlankLines("a\n   \n\n\nb")).toBe("a\n\nb");
+    expect(collapseBlankLines("a\n   \n\n\nb")).toBe("a\nb");
   });
 
   it("normalizes CRLF and clears whitespace-only lines before collapse", () => {
-    expect(collapseBlankLines("a\r\n   \r\n   \r\n   \r\nb")).toBe("a\n\nb");
-    expect(collapseBlankLines("a\r\n\r\n\r\nb")).toBe("a\n\nb");
+    expect(collapseBlankLines("a\r\n   \r\n   \r\n   \r\nb")).toBe("a\nb");
+    expect(collapseBlankLines("a\r\n\r\n\r\nb")).toBe("a\nb");
   });
 
   it("clears nbsp-only lines before collapse", () => {
-    expect(collapseBlankLines("a\n\u00a0\u00a0\n\u00a0\n\u00a0\nb")).toBe("a\n\nb");
+    expect(collapseBlankLines("a\n\u00a0\u00a0\n\u00a0\n\u00a0\nb")).toBe("a\nb");
   });
 });
