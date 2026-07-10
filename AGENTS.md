@@ -248,3 +248,14 @@ This protocol applies when ending a Beads implementation workflow. It is subordi
 - If a required sync or push is blocked, stop and report the exact command and error.
 <!-- END BEADS INTEGRATION -->
 
+## Cursor Cloud specific instructions
+
+glin is a pure Node/TypeScript CLI — there are no long-running services. Standard commands live in `package.json` scripts (`build`, `dev`, `lint`, `test`, `typecheck`).
+
+Non-obvious caveats for this environment:
+
+- **Build before running.** `dist/` is not committed. Run `npm run build` (or `npm run dev` for watch) before invoking the CLI; the `glin` bin points at `dist/cli.js`.
+- **`npm link` does not work here.** The global npm prefix (`/usr/lib/node_modules`) is not writable, so the README's `npm link` step fails with `EACCES`. Run the CLI directly instead: `node /workspace/dist/cli.js <subcommand>`.
+- **`glin init` is a stub** ("not implemented yet"). To exercise `glin fetch`, create a KB root containing a `raw/` directory manually and run from there (or pass `--base-dir <dir>`).
+- **`fetch` needs a KB + internet.** `glin fetch <url>` requires outbound internet and a KB root with `raw/`; it errors otherwise. `glin read <url>` only needs internet and writes nothing to disk.
+
