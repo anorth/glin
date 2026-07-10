@@ -1,12 +1,12 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { cleanHtml, findLinkedMedia, injectOfflineCsp, readCanonicalUrl, rewriteImageTags, rewriteStylesheetLinks, serializeHtml, type LinkedMediaItem, } from "./html.js";
 import { ACCEPT_CSS, ACCEPT_IMAGE, decodeTextBody, httpGet as defaultHttpGet, isHtmlContentType, parseMediaType, type HttpGetFn, } from "./http.js";
 import { requireBaseDir } from "./kb.js";
 import { retrievePage } from "./retrieve.js";
-import { filenameFromUrlPath, sanitizeDomain, sanitizePathComponent, slugFromUrl, uniquifyFilename, } from "./sanitize.js";
+import { extensionFromUrlPath, sanitizeDomain, sanitizePathComponent, slugFromUrl, } from "./sanitize.js";
 
 export interface FetchMeta {
   source_url: string;
@@ -36,6 +36,7 @@ export interface FetchOptions {
   httpGet?: HttpGetFn;
 }
 
+// Fetches a page and linked assets into a raw/ archive, and return archive metadata
 export async function fetchPage(options: FetchOptions): Promise<FetchResult> {
   const kbRoot = requireBaseDir(options.baseDir);
   const log = options.log ?? (() => { });
@@ -70,14 +71,6 @@ export async function fetchPage(options: FetchOptions): Promise<FetchResult> {
     await mkdir(join(stagingPath, "images"), { recursive: true });
     await mkdir(join(stagingPath, "styles"), { recursive: true });
 
-    const usedNames = {
-      images: new Map<string, number>(),
-      styles: new Map<string, number>(),
-    };
-    const fallbackCounters = {
-      images: 0,
-      styles: 0,
-    };
     const downloaded = new Map<string, string>();
 
     const imageConfig: AssetLocalizerConfig = {
@@ -85,7 +78,6 @@ export async function fetchPage(options: FetchOptions): Promise<FetchResult> {
       accept: ACCEPT_IMAGE,
       logLabel: "image",
       isExpectedContentType: (contentType) => contentType.startsWith("image/"),
-      defaultBasename: "image",
       extensionFromContentType: extensionFromImageContentType,
     };
 
@@ -94,18 +86,10 @@ export async function fetchPage(options: FetchOptions): Promise<FetchResult> {
       accept: ACCEPT_CSS,
       logLabel: "stylesheet",
       isExpectedContentType: (contentType) => contentType === "text/css",
-      defaultBasename: "style",
       extensionFromContentType: () => "css",
     };
 
-    const localizeAsset = createAssetLocalizer({
-      stagingPath,
-      get,
-      log,
-      usedNames,
-      fallbackCounters,
-      downloaded,
-    });
+    const localizeAsset = createAssetLocalizer({ stagingPath, get, log, downloaded });
 
     const { root, title, scriptsStripped, stylesStripped } = cleanHtml(html, {
       omitScripts: options.omitScripts ?? true,
@@ -168,16 +152,14 @@ interface AssetLocalizerConfig {
   accept: string;
   logLabel: string;
   isExpectedContentType: (contentType: string) => boolean;
-  defaultBasename: string;
   extensionFromContentType: (contentType: string) => string | null;
 }
 
+// Downloads remote assets and writes them under the staging archive by content hash.
 function createAssetLocalizer(options: {
   stagingPath: string;
   get: HttpGetFn;
   log: (message: string) => void;
-  usedNames: { images: Map<string, number>; styles: Map<string, number> };
-  fallbackCounters: { images: number; styles: number };
   downloaded: Map<string, string>;
 }): (absoluteUrl: string, config: AssetLocalizerConfig) => Promise<string | null> {
   return async (absoluteUrl, config) => {
@@ -197,33 +179,30 @@ function createAssetLocalizer(options: {
         return null;
       }
 
-      options.fallbackCounters[config.subdir] += 1;
-      let filename = filenameFromUrlPath(
+      const basename = hashAssetBasename(
+        assetResponse.body,
         absoluteUrl,
-        `${config.defaultBasename}-${options.fallbackCounters[config.subdir]}`,
+        assetResponse.contentType,
+        config.extensionFromContentType,
       );
-      if (!filename.includes(".")) {
-        const ext = config.extensionFromContentType(assetResponse.contentType);
-        if (ext) {
-          filename = `${filename}.${ext}`;
-        }
-      }
-
-      filename = uniquifyFilename(filename, options.usedNames[config.subdir]);
-
+      const assetDir = join(options.stagingPath, config.subdir);
+      const filename = await resolveHashFilename(assetDir, basename, assetResponse.body);
       const localRelative = `${config.subdir}/${filename}`;
-      await writeFile(join(options.stagingPath, localRelative), assetResponse.body);
+      const localPath = join(assetDir, filename);
+      if (!existsSync(localPath)) {
+        await writeFile(localPath, assetResponse.body);
+      }
       options.downloaded.set(absoluteUrl, localRelative);
       return localRelative;
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : `Unknown ${config.logLabel} download error`;
+      const message = error instanceof Error ? error.message : `Unknown ${config.logLabel} download error`;
       options.log(`  warning: failed to download ${config.logLabel} ${absoluteUrl}: ${message}`);
       return null;
     }
   };
 }
 
+// Resolves the raw/ directory path for an archived page from its final URL.
 function archiveDirectory(
   kbRoot: string,
   finalUrl: string,
@@ -241,6 +220,48 @@ function archiveDirectory(
   return { archivePath: join(kbRoot, ...parts), archiveRel };
 }
 
+// Builds a hash-based on-disk basename, preferring the source URL extension over content-type.
+function hashAssetBasename(
+  body: Buffer,
+  absoluteUrl: string,
+  contentType: string,
+  extensionFromContentType: (contentType: string) => string | null,
+): string {
+  const hash = createHash("sha256").update(body).digest("hex").slice(0, 16);
+  const ext = extensionFromUrlPath(absoluteUrl) ?? extensionFromContentType(contentType);
+  return ext ? `${hash}.${ext}` : hash;
+}
+
+// Picks a hash basename, reusing an existing file when content matches or suffixing on collision.
+export async function resolveHashFilename(
+  assetDir: string,
+  basename: string,
+  body: Buffer,
+): Promise<string> {
+  let candidate = basename;
+  for (let suffix = 2; ; suffix++) {
+    const localPath = join(assetDir, candidate);
+    if (!existsSync(localPath)) {
+      return candidate;
+    }
+    const existing = await readFile(localPath);
+    if (existing.equals(body)) {
+      return candidate;
+    }
+    candidate = suffixHashFilename(basename, suffix);
+  }
+}
+
+// Inserts -2, -3, … before the extension when a truncated hash collides.
+function suffixHashFilename(basename: string, suffix: number): string {
+  const dot = basename.lastIndexOf(".");
+  if (dot > 0) {
+    return `${basename.slice(0, dot)}-${suffix}${basename.slice(dot)}`;
+  }
+  return `${basename}-${suffix}`;
+}
+
+// Maps image media types to conventional file extensions.
 function extensionFromImageContentType(contentType: string): string | null {
   switch (parseMediaType(contentType)) {
     case "image/jpeg":

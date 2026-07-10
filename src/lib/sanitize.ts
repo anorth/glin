@@ -51,6 +51,29 @@ export function sanitizeFilename(name: string): string {
   return sanitizePathComponent(trimmed);
 }
 
+// Derives a file extension from the final URL path segment, or null if absent.
+export function extensionFromUrlPath(url: string): string | null {
+  try {
+    const segments = new URL(url).pathname.split("/").filter(Boolean);
+    const last = segments.at(-1);
+    if (!last) {
+      return null;
+    }
+    const withoutQuery = decodeURIComponent(last.split("?")[0] ?? last);
+    const dot = withoutQuery.lastIndexOf(".");
+    if (dot > 0 && dot < withoutQuery.length - 1) {
+      const ext = withoutQuery
+        .slice(dot + 1)
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "");
+      return ext || null;
+    }
+  } catch {
+    // fall through
+  }
+  return null;
+}
+
 /** Final URL path segment, sanitized for use as an on-disk filename. */
 export function filenameFromUrlPath(url: string, fallback: string): string {
   try {

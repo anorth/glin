@@ -1,14 +1,16 @@
-import { mkdtemp, mkdir, readFile, readdir, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fetchPage } from "./fetch.js";
+import { fetchPage, resolveHashFilename } from "./fetch.js";
 import { ACCEPT_CSS, ACCEPT_IMAGE, type HttpGetFn, type HttpResponse } from "./http.js";
 
 const PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
   "base64",
 );
+const PNG_HASH = "c414cd0e204de974";
+const CSS_HASH = "5de625c36355cce7";
 
 const PAGE_URL = "http://example.test/blog/post/";
 const IMAGE_URL = "http://example.test/photo.png";
@@ -98,9 +100,9 @@ describe("fetchPage", () => {
 
     const archivePath = join(baseDir, result.archive_path);
     const indexHtml = await readFile(join(archivePath, "index.html"), "utf8");
-    expect(indexHtml).toContain('src="images/photo.png"');
+    expect(indexHtml).toContain(`src="images/${PNG_HASH}.png"`);
     expect(indexHtml).toContain(`data-original-src="${IMAGE_URL}"`);
-    expect(indexHtml).toContain('href="styles/site.css"');
+    expect(indexHtml).toContain(`href="styles/${CSS_HASH}.css"`);
     expect(indexHtml).toContain(`data-original-href="${CSS_URL}"`);
     expect(indexHtml).toContain("Content-Security-Policy");
     expect(indexHtml).toContain("img-src * data: blob:");
@@ -113,10 +115,10 @@ describe("fetchPage", () => {
     expect(indexHtml).toContain("application/json");
 
     const images = await readdir(join(archivePath, "images"));
-    expect(images).toContain("photo.png");
+    expect(images).toContain(`${PNG_HASH}.png`);
 
     const styles = await readdir(join(archivePath, "styles"));
-    expect(styles).toContain("site.css");
+    expect(styles).toContain(`${CSS_HASH}.css`);
 
     const meta = JSON.parse(await readFile(join(archivePath, "meta.json"), "utf8"));
     expect(meta.stylesheets).toBe(1);
@@ -126,6 +128,117 @@ describe("fetchPage", () => {
 
     const parentEntries = await readdir(join(baseDir, "raw", "example.test", "myblog"));
     expect(parentEntries.some((entry) => entry.includes(".tmp-"))).toBe(false);
+  });
+
+  it("suffixes truncated-hash collisions when content differs", async () => {
+    const assetDir = await mkdtemp(join(tmpdir(), "glin-hash-collision-"));
+    try {
+      const basename = `${PNG_HASH}.png`;
+      const otherBody = Buffer.from("different bytes");
+      await writeFile(join(assetDir, basename), otherBody);
+
+      const resolved = await resolveHashFilename(assetDir, basename, PNG);
+      expect(resolved).toBe(`${PNG_HASH}-2.png`);
+    } finally {
+      await rm(assetDir, { recursive: true, force: true });
+    }
+  });
+
+  it("deduplicates identical assets referenced from different URLs", async () => {
+    const baseDir = await setupKb();
+    const altImageUrl = "http://example.test/assets/photo-copy.png";
+    const html = PAGE_HTML.replace(
+      '<img src="/photo.png" alt="test">',
+      '<img src="/photo.png" alt="one"><img src="/assets/photo-copy.png" alt="two">',
+    );
+
+    const result = await fetchPage({
+      sourceUrl: PAGE_URL,
+      baseDir,
+      httpGet: mockHttpGet({
+        [PAGE_URL]: {
+          url: PAGE_URL,
+          status: 200,
+          contentType: "text/html",
+          charset: "utf-8",
+          body: Buffer.from(html),
+        },
+        [IMAGE_URL]: {
+          url: IMAGE_URL,
+          status: 200,
+          contentType: "image/png",
+          charset: "utf-8",
+          body: PNG,
+        },
+        [altImageUrl]: {
+          url: altImageUrl,
+          status: 200,
+          contentType: "image/png",
+          charset: "utf-8",
+          body: PNG,
+        },
+        [CSS_URL]: {
+          url: CSS_URL,
+          status: 200,
+          contentType: "text/css",
+          charset: "utf-8",
+          body: Buffer.from("body { color: red; }"),
+        },
+      }),
+      log: () => {},
+    });
+
+    expect(result.images).toBe(2);
+    const archivePath = join(baseDir, result.archive_path);
+    const indexHtml = await readFile(join(archivePath, "index.html"), "utf8");
+    expect(indexHtml).toContain(`src="images/${PNG_HASH}.png"`);
+    expect(indexHtml.match(new RegExp(`src="images/${PNG_HASH}\\.png"`, "g"))).toHaveLength(2);
+
+    const images = await readdir(join(archivePath, "images"));
+    expect(images).toEqual([`${PNG_HASH}.png`]);
+  });
+
+  it("uses content-type extension when the source URL has none", async () => {
+    const baseDir = await setupKb();
+    const extensionlessImageUrl = "http://example.test/image";
+    const html = PAGE_HTML.replace(
+      '<img src="/photo.png" alt="test">',
+      '<img src="/image" alt="test">',
+    );
+
+    const result = await fetchPage({
+      sourceUrl: PAGE_URL,
+      baseDir,
+      httpGet: mockHttpGet({
+        [PAGE_URL]: {
+          url: PAGE_URL,
+          status: 200,
+          contentType: "text/html",
+          charset: "utf-8",
+          body: Buffer.from(html),
+        },
+        [extensionlessImageUrl]: {
+          url: extensionlessImageUrl,
+          status: 200,
+          contentType: "image/png",
+          charset: "utf-8",
+          body: PNG,
+        },
+        [CSS_URL]: {
+          url: CSS_URL,
+          status: 200,
+          contentType: "text/css",
+          charset: "utf-8",
+          body: Buffer.from("body { color: red; }"),
+        },
+      }),
+      log: () => {},
+    });
+
+    const archivePath = join(baseDir, result.archive_path);
+    const indexHtml = await readFile(join(archivePath, "index.html"), "utf8");
+    expect(indexHtml).toContain(`src="images/${PNG_HASH}.png"`);
+    expect(await readdir(join(archivePath, "images"))).toEqual([`${PNG_HASH}.png`]);
   });
 
   it("replaces an existing archive and logs the overwrite", async () => {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  extensionFromUrlPath,
   filenameFromUrlPath,
   sanitizeDomain,
   sanitizeFilename,
@@ -43,6 +44,18 @@ describe("sanitizeFilename", () => {
 
   it("returns file for empty name", () => {
     expect(sanitizeFilename("   ")).toBe("file");
+  });
+});
+
+describe("extensionFromUrlPath", () => {
+  it("returns the extension from the final path segment", () => {
+    expect(extensionFromUrlPath("https://example.com/a/b/photo.jpg")).toBe("jpg");
+    expect(extensionFromUrlPath("https://example.com/x.png?w=100")).toBe("png");
+  });
+
+  it("returns null when the URL has no extension", () => {
+    expect(extensionFromUrlPath("https://example.com/image")).toBeNull();
+    expect(extensionFromUrlPath("https://example.com/")).toBeNull();
   });
 });
 
