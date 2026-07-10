@@ -119,27 +119,28 @@ Transcription rules:
 
 Images the source **actually uses** in its main content must be copied out of
 `raw/…/images/` into the pooled `assets/` store, then referenced from the source
-node by relative path. Live nodes must not point into `raw/`.
+node by vault-root absolute path. Live nodes must not point into `raw/`.
+
+Fetched archives name images by truncated content hash (e.g. `images/abc123def4567890.png`).
+The filename **is** the hash — do not recompute it.
 
 For each image you include in the markdown body:
 
-1. Locate the local file under the archive's `images/` directory (the `src` on
-   `<img>` tags in `index.html` is typically `images/<filename>`).
-2. Compute a content hash and adopt into `assets/`:
+1. Read the `src` on the `<img>` tag in `index.html` (typically `images/<hash>.<ext>`).
+2. Copy the file into `assets/` under the same basename:
 
 ```bash
 mkdir -p assets
 # Example for one file; repeat per used image:
-src="raw/…/images/figure-1.png"
-hash=$(shasum -a 256 "$src" | awk '{print $1}')
-ext="${src##*.}"
-dest="assets/${hash}.${ext}"
+src="raw/…/images/abc123def4567890.png"
+dest="assets/abc123def4567890.png"
 if [ ! -f "$dest" ]; then
   cp "$src" "$dest"
 fi
 ```
 
-3. In the markdown body, reference the pooled path with a relative link from the source file (e.g. from `sources/example.com/post.md` use `../../assets/<hash>.png`).
+3. In the markdown body, embed with a vault-root absolute path derived from the
+   `src` basename: `![alt text](/assets/abc123def4567890.png)`.
 4. Use a sensible alt text from the HTML `alt` when present.
 
 Skip decorative chrome images (icons, logos, tracking pixels, social buttons).

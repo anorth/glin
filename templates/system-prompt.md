@@ -89,9 +89,10 @@ and safe.
 - **Citation (wiki → source):** by source `id` in the `cites` list. This is the
   provenance spine — cite the source, never paste its content, and never
   attribute a claim to a source that doesn't support it.
-- **Cross-link (wiki → wiki):** markdown link with readable display text.
-  Prefer vault-root absolute links, e.g. `[effect sizes](/wiki/methodology/effect-sizes.md)`.
-- **Embedded assets (wiki → assets):** use vault-root absolute paths, e.g. `![alt text](/assets/abcd123.png)`.
+- **Cross-link (wiki → wiki, source → source):** markdown link with readable display text.
+  Prefer vault-root absolute links, e.g. `[effect sizes](/wiki/methodology/effect-sizes.md)` or
+  `[original article](/sources/example.com/post.md)`.
+- **Embedded assets (any node → assets):** use vault-root absolute paths, e.g. `![alt text](/assets/abcd123.png)`.
 - When you move or rename a node, repair every inbound link and citation that
   pointed to it — this is part of the move, not a follow-up.
 
@@ -115,8 +116,9 @@ needs rather than assuming a vector store.
 - Diagrams, math, and small tables are **text**: use mermaid fenced blocks,
   LaTeX math, and markdown tables so they diff cleanly and travel with their node.
 - Real image and figure files live in the pooled `assets/` store, referenced by
-  relative path. Pooling keeps references stable when nodes move and gives free
-  deduplication. How a KB handles images that arrive with a source (copy them out
+  vault-root absolute path (e.g. `/assets/abcd123.png`). Pooling keeps references
+  stable when nodes move and gives free deduplication. How a KB handles images
+  that arrive with a source (copy them out
   of `raw/` into `assets/` eagerly, or reference them in place) is a per-KB policy
   in `AGENTS.md`.
 

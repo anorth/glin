@@ -196,11 +196,12 @@ Two distinct kinds of link, chosen for different stability needs:
   list. This is the provenance spine. Sources are archival and rarely move, so
   id-based citation keeps provenance robust. The agent must never invent a
   citation or attribute a claim to a source that doesn't support it.
-- **Cross-links (wiki → wiki)** are relative markdown links with readable display
-  text, e.g. `[effect sizes](../methodology/effect-sizes.md)`. Wiki content is
-  reorganized constantly, so plain relative links plus repair-on-move is the
-  cheap, portable choice (chosen over Obsidian-specific `[[wikilinks]]` for
-  portability across agents and tools).
+- **Cross-links (wiki → wiki, source → source)** are markdown links with readable
+  display text. Prefer vault-root absolute paths, e.g.
+  `[effect sizes](/wiki/methodology/effect-sizes.md)` — the form OKF and
+  Obsidian both support. Absolute links stay valid when a node moves within its
+  subtree; repair inbound links on rename/move anyway (see below). Chosen over
+  Obsidian-specific `[[wikilinks]]` for portability across agents and tools.
 
 **Link integrity is a workflow guarantee, not a format property.** When a node is
 moved or renamed, repairing every inbound link/citation is part of the move, not
@@ -232,8 +233,8 @@ There are two unrelated things called "index"; keep them distinct:
 - Diagrams, math, and small tables are **text**, not files: mermaid fenced blocks,
   LaTeX math, and markdown tables. They diff cleanly and travel with their node.
 - Real image/figure files live in a **pooled per-KB `assets/` store**, referenced
-  by relative path. Pooling keeps references stable when wiki nodes move and gives
-  free deduplication.
+  by vault-root absolute path (e.g. `/assets/abcd123.png`). Pooling keeps
+  references stable when nodes move and gives free deduplication.
 - Images downloaded with a source may initially be referenced from that source's
   raw `images/` folder; the intended end state is to **copy the images a source
   actually uses into `assets/`** so that no live node references into raw and raw

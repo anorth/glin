@@ -45,7 +45,8 @@ There may be many raw articles and many, many files within each article director
   (`id`, `type: source`, `title`, `author`, `source_url`, `fetched`, `raw`, `summary`)
   and a faithful markdown body (main content only; no editorializing)
 - Copies images the source actually uses into pooled `assets/` (content-hash
-  dedup) and points the markdown at those paths
+  dedup) and embeds them with vault-root absolute paths (e.g.
+  `![alt](/assets/<hash>.png)`)
 
 You do not need to perform those steps yourself — delegate and report the result.
 
