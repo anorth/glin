@@ -164,6 +164,13 @@ I will often have more context or ability to change the requirements.
 - Don't create README files explaining how code works, except when requested/appropriate in the root of the repository.
 - If I ask you a question, answer it and wait for my response. Don't continue with your task until I have responded.
 
+## Task tracking
+
+This repo uses **bd (beads)** for task tracking (see below).
+
+- When creating tasks, ensure they have full context for execution by a sub-agent that didn't participate in the prior discussion.
+- Task instructions should include a directive to agents to propose their plan to the user or supervisor for confirmation, and to ask clarifying questions, before proceeding.
+
 ## Communication Guidelines
 
 ### Offer criticism

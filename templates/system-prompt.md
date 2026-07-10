@@ -89,8 +89,9 @@ and safe.
 - **Citation (wiki → source):** by source `id` in the `cites` list. This is the
   provenance spine — cite the source, never paste its content, and never
   attribute a claim to a source that doesn't support it.
-- **Cross-link (wiki → wiki):** relative markdown link with readable display
-  text, e.g. `[effect sizes](../methodology/effect-sizes.md)`.
+- **Cross-link (wiki → wiki):** markdown link with readable display text.
+  Prefer vault-root absolute links, e.g. `[effect sizes](/wiki/methodology/effect-sizes.md)`.
+- **Embedded assets (wiki → assets):** use vault-root absolute paths, e.g. `![alt text](/assets/abcd123.png)`.
 - When you move or rename a node, repair every inbound link and citation that
   pointed to it — this is part of the move, not a follow-up.
 
