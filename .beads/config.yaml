@@ -67,4 +67,4 @@
 
 sync.remote: "git+ssh://git@github.com/anorth/glin.git"
 
-export.auto: true
+export.auto: false
