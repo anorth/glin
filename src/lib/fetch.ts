@@ -1,10 +1,11 @@
-import { createHash, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { cleanHtml, findLinkedMedia, injectOfflineCsp, readCanonicalUrl, rewriteImageTags, rewriteStylesheetLinks, serializeHtml, type LinkedMediaItem, } from "./html.js";
 import { ACCEPT_CSS, ACCEPT_IMAGE, decodeTextBody, httpGet as defaultHttpGet, isHtmlContentType, parseMediaType, type HttpGetFn, } from "./http.js";
 import { requireBaseDir } from "./kb.js";
+import { contentHashBasename, resolveHashFilename } from "./hash-filename.js";
 import { retrievePage } from "./retrieve.js";
 import { extensionFromUrlPath, sanitizeDomain, sanitizePathComponent, slugFromUrl, } from "./sanitize.js";
 
@@ -179,11 +180,10 @@ function createAssetLocalizer(options: {
         return null;
       }
 
-      const basename = hashAssetBasename(
+      const basename = contentHashBasename(
         assetResponse.body,
-        absoluteUrl,
-        assetResponse.contentType,
-        config.extensionFromContentType,
+        extensionFromUrlPath(absoluteUrl) ??
+          config.extensionFromContentType(assetResponse.contentType),
       );
       const assetDir = join(options.stagingPath, config.subdir);
       const filename = await resolveHashFilename(assetDir, basename, assetResponse.body);
@@ -218,47 +218,6 @@ function archiveDirectory(
   parts.push(slug);
   const archiveRel = parts.join("/");
   return { archivePath: join(kbRoot, ...parts), archiveRel };
-}
-
-// Builds a hash-based on-disk basename, preferring the source URL extension over content-type.
-function hashAssetBasename(
-  body: Buffer,
-  absoluteUrl: string,
-  contentType: string,
-  extensionFromContentType: (contentType: string) => string | null,
-): string {
-  const hash = createHash("sha256").update(body).digest("hex").slice(0, 16);
-  const ext = extensionFromUrlPath(absoluteUrl) ?? extensionFromContentType(contentType);
-  return ext ? `${hash}.${ext}` : hash;
-}
-
-// Picks a hash basename, reusing an existing file when content matches or suffixing on collision.
-export async function resolveHashFilename(
-  assetDir: string,
-  basename: string,
-  body: Buffer,
-): Promise<string> {
-  let candidate = basename;
-  for (let suffix = 2; ; suffix++) {
-    const localPath = join(assetDir, candidate);
-    if (!existsSync(localPath)) {
-      return candidate;
-    }
-    const existing = await readFile(localPath);
-    if (existing.equals(body)) {
-      return candidate;
-    }
-    candidate = suffixHashFilename(basename, suffix);
-  }
-}
-
-// Inserts -2, -3, … before the extension when a truncated hash collides.
-function suffixHashFilename(basename: string, suffix: number): string {
-  const dot = basename.lastIndexOf(".");
-  if (dot > 0) {
-    return `${basename.slice(0, dot)}-${suffix}${basename.slice(dot)}`;
-  }
-  return `${basename}-${suffix}`;
 }
 
 // Maps image media types to conventional file extensions.

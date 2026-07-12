@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promis
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fetchPage, resolveHashFilename } from "./fetch.js";
+import { fetchPage } from "./fetch.js";
 import { ACCEPT_CSS, ACCEPT_IMAGE, type HttpGetFn, type HttpResponse } from "./http.js";
 
 const PNG = Buffer.from(
@@ -128,20 +128,6 @@ describe("fetchPage", () => {
 
     const parentEntries = await readdir(join(baseDir, "raw", "example.test", "myblog"));
     expect(parentEntries.some((entry) => entry.includes(".tmp-"))).toBe(false);
-  });
-
-  it("suffixes truncated-hash collisions when content differs", async () => {
-    const assetDir = await mkdtemp(join(tmpdir(), "glin-hash-collision-"));
-    try {
-      const basename = `${PNG_HASH}.png`;
-      const otherBody = Buffer.from("different bytes");
-      await writeFile(join(assetDir, basename), otherBody);
-
-      const resolved = await resolveHashFilename(assetDir, basename, PNG);
-      expect(resolved).toBe(`${PNG_HASH}-2.png`);
-    } finally {
-      await rm(assetDir, { recursive: true, force: true });
-    }
   });
 
   it("deduplicates identical assets referenced from different URLs", async () => {
