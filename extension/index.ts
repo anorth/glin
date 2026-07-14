@@ -1,8 +1,5 @@
 /**
- * glin Pi extension — minimal subagent runner.
- *
- * Registers a `subagent` tool that delegates a task to a bundled agent
- * by spawning an isolated `pi` child process.
+ * glin Pi extension — extract tool + minimal subagent runner.
  */
 
 import type { AgentToolResult } from "@earendil-works/pi-agent-core";
@@ -16,6 +13,7 @@ import * as path from "node:path";
 import { Type } from "typebox";
 
 import { buildChildArgs, discoverAgents, formatAgentList, resolveInlineFiles, type AgentConfig } from "./agents.ts";
+import { registerExtractTool } from "./extract.ts";
 
 interface UsageStats {
   input: number;
@@ -46,7 +44,7 @@ interface SubagentDetails {
 
 const SubagentParams = Type.Object({
   agent: Type.String({
-    description: "Name of the bundled agent to invoke (e.g. extract)",
+    description: "Name of the bundled agent to invoke",
   }),
   task: Type.String({
     description: "Task for the agent.",
@@ -60,6 +58,8 @@ const SubagentParams = Type.Object({
 });
 
 export default function (pi: ExtensionAPI): void {
+  registerExtractTool(pi);
+
   pi.registerTool({
     name: "subagent",
     label: "Subagent",
@@ -67,7 +67,6 @@ export default function (pi: ExtensionAPI): void {
       "Delegate a task to a specialized glin subagent with an isolated context and (usually) a pinned model.",
       "Available agents are discovered from the extension's bundled agents/ directory.",
       "Optional files are inlined in full into the agent's context.",
-      "Use agent \"extract\" to turn a raw/ archive into a faithful sources/ markdown node.",
     ].join(" "),
     parameters: SubagentParams,
 

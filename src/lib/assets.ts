@@ -30,7 +30,8 @@ export type AdoptSourceAssetsResult = {
 /**
  * Copies every archive-relative image referenced in extracted markdown into the
  * pooled assets/ store under a content-hash basename (collision-suffixed when
- * needed), and rewrites those refs to /assets/<hash>.<ext>.
+ * needed), and rewrites those refs to vault-root absolute `/assets/<hash>.<ext>`
+ * (leading slash; OKF-style bundle-relative).
  *
  * data: and blob: URLs are left untouched. Missing or unreadable archive files
  * are skipped and reported in `errors` so other refs can still succeed.
@@ -38,7 +39,7 @@ export type AdoptSourceAssetsResult = {
 export async function adoptSourceAssets(
   options: AdoptSourceAssetsOptions,
 ): Promise<AdoptSourceAssetsResult> {
-  const relativeRefs = collectArchiveRelativeImageRefs(options.markdown);
+  const relativeRefs = listArchiveRelativeImageRefs(options.markdown);
   const adopted: string[] = [];
   const deduplicated: string[] = [];
   const errors: string[] = [];
@@ -75,7 +76,33 @@ export async function adoptSourceAssets(
   return { markdown, adopted, deduplicated, errors };
 }
 
-function collectArchiveRelativeImageRefs(markdown: string): string[] {
+/**
+ * Image refs that are not valid in a written source node after adoption.
+ * Allowed: vault-root `/assets/<file>` that resolves to an existing file under
+ * kbRoot/assets/, plus data: and blob: URLs. Everything else (archive-relative
+ * leftovers, http(s), invented /assets paths, …) is returned sorted.
+ */
+export function findInvalidSourceImageRefs(
+  markdown: string,
+  kbRoot: string,
+): string[] {
+  const invalid = new Set<string>();
+
+  for (const ref of findMarkdownRefs(markdown)) {
+    if (ref.kind !== "image") {
+      continue;
+    }
+    if (isAllowedSourceImageRef(ref.url, kbRoot)) {
+      continue;
+    }
+    invalid.add(ref.url);
+  }
+
+  return [...invalid].sort();
+}
+
+/** Archive-relative image URLs (e.g. images/foo.png) eligible for adoption. */
+export function listArchiveRelativeImageRefs(markdown: string): string[] {
   const refs = new Set<string>();
 
   for (const ref of findMarkdownRefs(markdown)) {
@@ -88,6 +115,34 @@ function collectArchiveRelativeImageRefs(markdown: string): string[] {
   }
 
   return [...refs].sort();
+}
+
+function isAllowedSourceImageRef(url: string, kbRoot: string): boolean {
+  if (!url) {
+    return false;
+  }
+  const lower = url.toLowerCase();
+  if (lower.startsWith("data:") || lower.startsWith("blob:")) {
+    return true;
+  }
+  if (!url.startsWith(ASSET_PATH_PREFIX)) {
+    return false;
+  }
+  const assetRel = url.slice(1); // assets/<file>
+  if (!assetRel.startsWith(`${KB_ASSETS_DIR}/`) || assetRel.split("/").includes("..")) {
+    return false;
+  }
+  const assetFile = assetRel.slice(KB_ASSETS_DIR.length + 1);
+  if (!assetFile || assetFile.includes("/")) {
+    // Only flat /assets/<file> — no nested paths.
+    return false;
+  }
+  const resolved = resolve(kbRoot, assetRel);
+  const rel = relative(resolve(kbRoot), resolved);
+  if (!rel || rel.startsWith("..") || isAbsolute(rel)) {
+    return false;
+  }
+  return existsSync(resolved);
 }
 
 function isArchiveRelativeRef(url: string): boolean {

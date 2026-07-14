@@ -82,14 +82,8 @@ describe("discoverAgents", () => {
     expect(discoverAgents("/nonexistent/agents-dir")).toEqual([]);
   });
 
-  it("loads the shipped extract agent when no dir is given", () => {
-    const agents = discoverAgents();
-    expect(agents.map((a) => a.name)).toContain("extract");
-    const extract = agents.find((a) => a.name === "extract")!;
-    expect(extract.model).toBeTruthy();
-    expect(extract.replaceSystemPrompt).toBe(true);
-    expect(extract.contextFiles).toBe(false);
-    expect(extract.systemPrompt).toContain("faithful");
+  it("finds no bundled agents when agents/ is empty", () => {
+    expect(discoverAgents()).toEqual([]);
   });
 });
 

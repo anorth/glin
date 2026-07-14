@@ -141,10 +141,10 @@ and roughly when to reach for it.
 
 The glin Pi extension (when installed) also provides:
 
-- `subagent({ agent, task, files })` — delegate a task to a specialized subagent with an
-  isolated context and a pinned model. Files may be inlined into the prompt.
-  Use `agent: "extract"` to turn a `raw/` archive into a faithful `sources/` node (see the extract skill).
-  Do not perform extraction yourself when this tool is available. It will be faster and more accurate.
+- `extract({ archive, output })` — turn a `raw/` archive into a `sources/` node
+  (see the extract skill). Do not extract yourself when this tool is available.
+- `subagent({ agent, task, files })` — delegate to a specialized subagent; optional
+  files may be inlined into the prompt.
 
 Backlinks and the search index are regenerable caches derived from the files; the
 files are always authoritative.

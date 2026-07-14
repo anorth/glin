@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { adoptSourceAssets } from "./assets.js";
+import { adoptSourceAssets, findInvalidSourceImageRefs } from "./assets.js";
 
 const PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
@@ -196,5 +196,67 @@ describe("adoptSourceAssets", () => {
       `![escape](../outside.png)`,
       `![ok](/assets/${imageBasename})`,
     ].join("\n"));
+  });
+});
+
+describe("findInvalidSourceImageRefs", () => {
+  let kbDir: string | undefined;
+
+  afterEach(async () => {
+    if (kbDir) {
+      await rm(kbDir, { recursive: true, force: true });
+      kbDir = undefined;
+    }
+  });
+
+  async function setupKb(): Promise<string> {
+    kbDir = await mkdtemp(join(tmpdir(), "glin-invalid-refs-"));
+    await mkdir(join(kbDir, "assets"), { recursive: true });
+    await writeFile(join(kbDir, "assets", `${PNG_HASH}.png`), PNG);
+    return kbDir;
+  }
+
+  it("allows on-disk /assets refs", async () => {
+    const kbRoot = await setupKb();
+    expect(
+      findInvalidSourceImageRefs(`![ok](/assets/${PNG_HASH}.png)`, kbRoot),
+    ).toEqual([]);
+  });
+
+  it("allows data and blob refs", async () => {
+    const kbRoot = await setupKb();
+    const markdown = [
+      "![d](data:image/png;base64,aaa)",
+      "![b](blob:https://example.test/uuid)",
+    ].join("\n");
+    expect(findInvalidSourceImageRefs(markdown, kbRoot)).toEqual([]);
+  });
+
+  it("flags leftover archive-relative refs", async () => {
+    const kbRoot = await setupKb();
+    expect(
+      findInvalidSourceImageRefs("![x](images/foo.png)", kbRoot),
+    ).toEqual(["images/foo.png"]);
+  });
+
+  it("flags remote http refs", async () => {
+    const kbRoot = await setupKb();
+    expect(
+      findInvalidSourceImageRefs("![x](https://example.test/x.png)", kbRoot),
+    ).toEqual(["https://example.test/x.png"]);
+  });
+
+  it("flags missing /assets files", async () => {
+    const kbRoot = await setupKb();
+    expect(
+      findInvalidSourceImageRefs("![x](/assets/missing.png)", kbRoot),
+    ).toEqual(["/assets/missing.png"]);
+  });
+
+  it("flags /assets without leading slash", async () => {
+    const kbRoot = await setupKb();
+    expect(
+      findInvalidSourceImageRefs(`![x](assets/${PNG_HASH}.png)`, kbRoot),
+    ).toEqual([`assets/${PNG_HASH}.png`]);
   });
 });
