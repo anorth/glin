@@ -29,6 +29,7 @@ describe("runExtract", () => {
 
   async function setupKb(options?: {
     author?: string;
+    publication?: string;
     image?: boolean;
   }): Promise<string> {
     kbDir = await mkdtemp(join(tmpdir(), "glin-extract-test-"));
@@ -46,6 +47,9 @@ describe("runExtract", () => {
     if (options?.author) {
       meta.author = options.author;
     }
+    if (options?.publication) {
+      meta.publication = options.publication;
+    }
     await writeFile(join(archivePath, "meta.json"), JSON.stringify(meta));
     await writeFile(
       join(archivePath, "index.html"),
@@ -62,15 +66,25 @@ describe("runExtract", () => {
 
   function modelCallReturning(
     body: string,
-    summary = "A short navigation summary of the article.",
+    summary: {
+      summary?: string;
+      author?: string | null;
+      publication?: string | null;
+    } = {},
   ): ExtractModelCall {
+    const payload = {
+      summary: summary.summary ?? "A short navigation summary of the article.",
+      author: summary.author === undefined ? null : summary.author,
+      publication:
+        summary.publication === undefined ? null : summary.publication,
+    };
     let call = 0;
     return async () => {
       call += 1;
       if (call === 1) {
         return { text: body, usage: zeroUsage() };
       }
-      return { text: summary, usage: zeroUsage() };
+      return { text: JSON.stringify(payload), usage: zeroUsage() };
     };
   }
 
@@ -79,7 +93,10 @@ describe("runExtract", () => {
   }
 
   it("happy path writes frontmatter, body, and adopted assets", async () => {
-    const kbRoot = await setupKb({ author: "Ada Lovelace" });
+    const kbRoot = await setupKb({
+      author: "Ada Lovelace",
+      publication: "Example Journal",
+    });
     const body = [
       "# My Post",
       "",
@@ -89,7 +106,12 @@ describe("runExtract", () => {
       "",
       "Paragraph.",
     ].join("\n");
-    const modelCall = modelCallReturning(body);
+    // Model disagrees on author; meta wins. Model fills publication only if meta absent —
+    // here meta has publication, so model value is ignored.
+    const modelCall = modelCallReturning(body, {
+      author: "Wrong Author",
+      publication: "Wrong Pub",
+    });
 
     const result = await runExtract(
       { archive: ARCHIVE, output: OUTPUT },
@@ -106,6 +128,9 @@ describe("runExtract", () => {
     expect(written).toContain("type: source");
     expect(written).toContain('title: "My Post"');
     expect(written).toContain('author: "Ada Lovelace"');
+    expect(written).toContain('publication: "Example Journal"');
+    expect(written).not.toContain("Wrong Author");
+    expect(written).not.toContain("Wrong Pub");
     expect(written).toContain('source_url: "https://example.com/blog/my-post/"');
     expect(written).toContain('fetched: "2026-07-14"');
     expect(written).toContain(`raw: "${ARCHIVE}/"`);
@@ -224,6 +249,30 @@ describe("runExtract", () => {
     expect(result.isError).toBeFalsy();
     const written = await readFile(join(kbRoot, OUTPUT), "utf8");
     expect(written).not.toMatch(/^author:/m);
+    expect(written).not.toMatch(/^publication:/m);
     expect(written).toContain('title: "My Post"');
+  });
+
+  it("infers author and publication from summary when meta omits them", async () => {
+    const kbRoot = await setupKb();
+    const body = ["# My Post", "", "Hello."].join("\n");
+
+    const result = await runExtract(
+      { archive: ARCHIVE, output: OUTPUT },
+      undefined,
+      undefined,
+      { cwd: kbRoot },
+      {
+        modelCall: modelCallReturning(body, {
+          author: "Grace Hopper",
+          publication: "Naval Review",
+        }),
+      },
+    );
+
+    expect(result.isError).toBeFalsy();
+    const written = await readFile(join(kbRoot, OUTPUT), "utf8");
+    expect(written).toContain('author: "Grace Hopper"');
+    expect(written).toContain('publication: "Naval Review"');
   });
 });

@@ -74,8 +74,9 @@ Every node opens with YAML frontmatter. These keys are read by the tools and are
 required on every node: `id`, `type`, `title`, `summary`. A node without a good
 `summary` is invisible to navigation.
 
-- **Source nodes** additionally carry `source_url`, `fetched` (YYYY-MM-DD),
-  `author`, and `raw` (path to the archived original).
+- **Source nodes** additionally carry `source_url`, `fetched` (YYYY-MM-DD), and
+  `raw` (path to the archived original). Optional: `author`, `publication`
+  (outlet / site name) — include when known, omit when not.
 - **Wiki nodes** additionally carry `updated` (YYYY-MM-DD), optional `tags`, and
   optional `cites` (a list of source `id`s this node rests on; omit if none).
 

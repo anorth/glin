@@ -56,6 +56,157 @@ export function readCanonicalUrl(
   return null;
 }
 
+/**
+ * Best-effort publication / site name from common page meta.
+ * Order: og:site_name, JSON-LD publisher.name, application-name, publisher.
+ * Returns null when none are present (caller should omit the field).
+ */
+export function readPublication(root: HTMLElement): string | null {
+  return (
+    readMetaContent(root, "property", "og:site_name") ??
+    readJsonLdNamed(root, "publisher") ??
+    readMetaContent(root, "name", "application-name") ??
+    readMetaContent(root, "name", "publisher")
+  );
+}
+
+/**
+ * Best-effort article author from common page meta.
+ * Order: JSON-LD author.name, meta author, article:author, rel=author.
+ * Returns null when none are present (caller should omit the field).
+ * Skips values that are bare http(s) URLs (common for article:author).
+ */
+export function readAuthor(root: HTMLElement): string | null {
+  return (
+    nonUrlName(readJsonLdNamed(root, "author")) ??
+    nonUrlName(readMetaContent(root, "name", "author")) ??
+    nonUrlName(readMetaContent(root, "property", "article:author")) ??
+    nonUrlName(readRelAuthorName(root))
+  );
+}
+
+/** content= of the first <meta> whose name or property matches (case-insensitive). */
+function readMetaContent(
+  root: HTMLElement,
+  attr: "name" | "property",
+  value: string,
+): string | null {
+  const needle = value.toLowerCase();
+  for (const meta of root.querySelectorAll("meta")) {
+    const attrValue = meta.getAttribute(attr)?.trim().toLowerCase();
+    if (attrValue !== needle) {
+      continue;
+    }
+    const content = meta.getAttribute("content")?.trim();
+    if (content) {
+      return content;
+    }
+  }
+  return null;
+}
+
+/** Visible text of the first <a rel="author">, if any. */
+function readRelAuthorName(root: HTMLElement): string | null {
+  for (const el of root.querySelectorAll("a[rel]")) {
+    const rel = el.getAttribute("rel")?.toLowerCase() ?? "";
+    if (!rel.split(/\s+/).includes("author")) {
+      continue;
+    }
+    const text = el.text.trim().replace(/\s+/g, " ");
+    if (text) {
+      return text;
+    }
+  }
+  return null;
+}
+
+/** First usable name from JSON-LD for a property like author or publisher. */
+function readJsonLdNamed(
+  root: HTMLElement,
+  property: "author" | "publisher",
+): string | null {
+  for (const node of jsonLdObjects(root)) {
+    const name = nameFromJsonLdValue(node[property]);
+    if (name) {
+      return name;
+    }
+  }
+  return null;
+}
+
+/** Flatten application/ld+json script bodies into plain objects (@graph expanded). */
+function jsonLdObjects(root: HTMLElement): Record<string, unknown>[] {
+  const objects: Record<string, unknown>[] = [];
+  for (const el of root.querySelectorAll("script[type]")) {
+    const type = el.getAttribute("type")?.trim().toLowerCase() ?? "";
+    if (type !== "application/ld+json") {
+      continue;
+    }
+    const raw = el.text.trim();
+    if (!raw) {
+      continue;
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      continue;
+    }
+    for (const item of Array.isArray(parsed) ? parsed : [parsed]) {
+      if (!item || typeof item !== "object" || Array.isArray(item)) {
+        continue;
+      }
+      const obj = item as Record<string, unknown>;
+      const graph = obj["@graph"];
+      if (Array.isArray(graph)) {
+        for (const node of graph) {
+          if (node && typeof node === "object" && !Array.isArray(node)) {
+            objects.push(node as Record<string, unknown>);
+          }
+        }
+      }
+      objects.push(obj);
+    }
+  }
+  return objects;
+}
+
+/** String | {name} | array → first non-empty name string. */
+function nameFromJsonLdValue(value: unknown): string | null {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const name = nameFromJsonLdValue(item);
+      if (name) {
+        return name;
+      }
+    }
+    return null;
+  }
+  if (value && typeof value === "object") {
+    const name = (value as Record<string, unknown>).name;
+    if (typeof name === "string") {
+      const trimmed = name.trim();
+      return trimmed.length > 0 ? trimmed : null;
+    }
+  }
+  return null;
+}
+
+/** Reject bare http(s) URLs; those are not useful as display names. */
+function nonUrlName(value: string | null): string | null {
+  if (!value) {
+    return null;
+  }
+  if (/^https?:\/\//i.test(value)) {
+    return null;
+  }
+  return value;
+}
+
 export interface ImageRewriteOptions {
   root: HTMLElement;
   baseUrl: string;

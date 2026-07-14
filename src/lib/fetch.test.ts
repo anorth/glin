@@ -125,6 +125,8 @@ describe("fetchPage", () => {
     expect(meta.scripts_stripped).toBe(1);
     expect(meta.styles_stripped).toBe(0);
     expect(meta.archive_path).toBeUndefined();
+    expect(meta).not.toHaveProperty("author");
+    expect(meta).not.toHaveProperty("publication");
 
     const parentEntries = await readdir(join(baseDir, "raw", "example.test", "myblog"));
     expect(parentEntries.some((entry) => entry.includes(".tmp-"))).toBe(false);

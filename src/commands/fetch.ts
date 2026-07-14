@@ -24,8 +24,9 @@ self, fonts from the network). Executable scripts are removed by default; data s
 otherwise left as-is; linked media is reported but not downloaded.
 
 Prints a JSON object to stdout (progress to stderr) with source_url, final_url,
-fetched timestamp, content_type, title, canonical_url, images (count localized),
-stylesheets (count localized), linked_media, scripts_stripped, styles_stripped, and archive_path.`,
+fetched timestamp, content_type, title, canonical_url, optional author and
+publication (omitted when absent), images (count localized), stylesheets
+(count localized), linked_media, scripts_stripped, styles_stripped, and archive_path.`,
     )
     .argument("<url>", "URL to fetch")
     .option("-g, --group <name>", "Optional grouping subdirectory under the domain")

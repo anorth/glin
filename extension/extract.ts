@@ -4,11 +4,12 @@
  * Flow:
  *   1. Validate KB-relative archive + output paths; read meta.json + index.html
  *   2. Body call: inline index.html only; model returns markdown body (no frontmatter)
- *   3. Require leading H1; summary call on that body
+ *   3. Require leading H1; summary call returns JSON (summary + optional author/publication)
  *   4. adoptSourceAssets rewrites archive-relative image refs to /assets/<hash>.<ext>
  *   5. Fail hard (write nothing) on adoption errors or invalid image refs
  *      (must be existing /assets/… or data:/blob:)
- *   6. Build YAML frontmatter from meta.json + archive path (title from leading H1)
+ *   6. Build YAML frontmatter from meta.json + archive path (title from leading H1;
+ *      author/publication: meta wins, else summary inference, else omit)
  *   7. Write frontmatter + body once
  *
  * The outer LLM chooses the title-based output path; this tool never invents it.
@@ -89,6 +90,7 @@ type ArchiveMeta = {
   fetched?: unknown;
   title?: unknown;
   author?: unknown;
+  publication?: unknown;
 };
 
 /** Pi accepts isError on tool results at runtime; AgentToolResult typings omit it. */
@@ -332,12 +334,14 @@ export async function runExtract(
   emit("Summarizing…");
 
   let summaryText: string;
+  let inferredAuthor: string | null = null;
+  let inferredPublication: string | null = null;
   try {
     const summaryPrompt = await readFile(SUMMARY_PROMPT_PATH, "utf8");
     const result = await modelCall({
       systemPrompt: summaryPrompt,
       userPrompt: [
-        "Summarize the following article for knowledge-base navigation:",
+        "Extract navigation metadata for the following article:",
         "",
         bodyMarkdown,
       ].join("\n"),
@@ -348,10 +352,13 @@ export async function runExtract(
     if (result.error) {
       return fail(result.error);
     }
-    summaryText = normalizeSummary(result.text);
-    if (!summaryText) {
-      return fail("Summary model returned empty text.");
+    const parsed = parseSummaryPayload(result.text);
+    if (!parsed) {
+      return fail("Summary model returned invalid JSON (need summary, author, publication).");
     }
+    summaryText = parsed.summary;
+    inferredAuthor = parsed.author;
+    inferredPublication = parsed.publication;
   } catch (error) {
     if (signal?.aborted) {
       return fail("Extract was aborted.");
@@ -401,7 +408,9 @@ export async function runExtract(
   const frontmatter = buildSourceFrontmatter({
     archiveRel,
     title,
-    author: optionalMetaString(meta.author),
+    // meta.json wins; model fills gaps only
+    author: optionalMetaString(meta.author) ?? inferredAuthor,
+    publication: optionalMetaString(meta.publication) ?? inferredPublication,
     sourceUrl,
     fetched,
     summary: summaryText,
@@ -457,6 +466,7 @@ function buildSourceFrontmatter(fields: {
   archiveRel: string;
   title: string;
   author: string | null;
+  publication: string | null;
   sourceUrl: string;
   fetched: string;
   summary: string;
@@ -470,6 +480,9 @@ function buildSourceFrontmatter(fields: {
   ];
   if (fields.author) {
     lines.push(`author: ${yamlScalar(fields.author)}`);
+  }
+  if (fields.publication) {
+    lines.push(`publication: ${yamlScalar(fields.publication)}`);
   }
   lines.push(
     `source_url: ${yamlScalar(fields.sourceUrl)}`,
@@ -519,7 +532,61 @@ function leadingH1Title(markdown: string): string | null {
   return title.length > 0 ? title : null;
 }
 
-/** Collapse summary model output to a single plain-text paragraph. */
+/** Parse summary-model JSON into summary + optional author/publication. */
+function parseSummaryPayload(text: string): {
+  summary: string;
+  author: string | null;
+  publication: string | null;
+} | null {
+  const raw = stripJsonFences(text.trim());
+  if (!raw) {
+    return null;
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return null;
+  }
+  const obj = parsed as Record<string, unknown>;
+  const summary = normalizeSummary(
+    typeof obj.summary === "string" ? obj.summary : "",
+  );
+  if (!summary) {
+    return null;
+  }
+  return {
+    summary,
+    author: optionalInferredString(obj.author),
+    publication: optionalInferredString(obj.publication),
+  };
+}
+
+/** Allow null / missing / blank; reject non-strings and bare http(s) URLs. */
+function optionalInferredString(value: unknown): string | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  if (!trimmed || /^https?:\/\//i.test(trimmed)) {
+    return null;
+  }
+  return trimmed;
+}
+
+/** Strip optional ``` / ```json fences around model JSON. */
+function stripJsonFences(text: string): string {
+  const fenced = text.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?```$/i);
+  return fenced ? fenced[1].trim() : text;
+}
+
+/** Collapse summary prose to a single plain-text paragraph. */
 function normalizeSummary(text: string): string {
   return text
     .trim()

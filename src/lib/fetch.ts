@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { cleanHtml, findLinkedMedia, injectOfflineCsp, readCanonicalUrl, rewriteImageTags, rewriteStylesheetLinks, serializeHtml, type LinkedMediaItem, } from "./html.js";
+import { cleanHtml, findLinkedMedia, injectOfflineCsp, readAuthor, readCanonicalUrl, readPublication, rewriteImageTags, rewriteStylesheetLinks, serializeHtml, type LinkedMediaItem, } from "./html.js";
 import { ACCEPT_CSS, ACCEPT_IMAGE, decodeTextBody, httpGet as defaultHttpGet, isHtmlContentType, parseMediaType, type HttpGetFn, } from "./http.js";
 import { requireBaseDir } from "./kb.js";
 import { contentHashBasename, resolveHashFilename } from "./hash-filename.js";
@@ -16,6 +16,10 @@ export interface FetchMeta {
   content_type: string;
   title: string | null;
   canonical_url: string | null;
+  /** Present only when the page exposes a usable author. */
+  author?: string;
+  /** Present only when the page exposes a usable publication / site name. */
+  publication?: string;
   images: number;
   stylesheets: number;
   linked_media: LinkedMediaItem[];
@@ -99,6 +103,8 @@ export async function fetchPage(options: FetchOptions): Promise<FetchResult> {
     });
 
     const canonical_url = readCanonicalUrl(root, response.url);
+    const author = readAuthor(root);
+    const publication = readPublication(root);
     const linked_media = findLinkedMedia(root, response.url);
 
     const images = await rewriteImageTags({
@@ -128,6 +134,12 @@ export async function fetchPage(options: FetchOptions): Promise<FetchResult> {
       scripts_stripped: scriptsStripped,
       styles_stripped: stylesStripped,
     };
+    if (author) {
+      meta.author = author;
+    }
+    if (publication) {
+      meta.publication = publication;
+    }
 
     await writeFile(join(stagingPath, "index.html"), serializeHtml(root), "utf8");
     await writeFile(
