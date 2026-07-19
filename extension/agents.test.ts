@@ -6,34 +6,34 @@ import {
   buildChildArgs,
   discoverAgents,
   formatAgentList,
+  genericAgent,
   parseAgentMarkdown,
   resolveInlineFiles,
   type AgentConfig,
 } from "./agents.ts";
 
 const sampleAgentMd = `---
-name: extract
-description: Turn a raw/ archive into a sources/ node
+name: example
+description: A specialized bundled agent
 model: google/gemini-2.5-flash
 tools: read, write, bash, ls, grep
-replaceSystemPrompt: true
 contextFiles: false
 ---
 
-You extract one archived web page.
+You do a specialized task.
 `;
 
 describe("parseAgentMarkdown", () => {
   it("parses a valid agent file", () => {
-    const agent = parseAgentMarkdown(sampleAgentMd, "/tmp/extract.md");
+    const agent = parseAgentMarkdown(sampleAgentMd, "/tmp/example.md");
     expect(agent).not.toBeNull();
-    expect(agent!.name).toBe("extract");
-    expect(agent!.description).toContain("raw/");
+    expect(agent!.name).toBe("example");
+    expect(agent!.description).toContain("specialized");
     expect(agent!.model).toBe("google/gemini-2.5-flash");
     expect(agent!.tools).toEqual(["read", "write", "bash", "ls", "grep"]);
-    expect(agent!.replaceSystemPrompt).toBe(true);
     expect(agent!.contextFiles).toBe(false);
-    expect(agent!.systemPrompt).toContain("You extract one archived web page.");
+    expect(agent!.loadSkills).toBe(false);
+    expect(agent!.systemPrompt).toContain("You do a specialized task.");
   });
 
   it("returns null without name or description", () => {
@@ -48,25 +48,44 @@ describe("parseAgentMarkdown", () => {
       "---\nname: a\ndescription: d\n---\nbody\n",
       "/tmp/a.md",
     );
-    expect(agent!.replaceSystemPrompt).toBe(true);
     expect(agent!.contextFiles).toBe(false);
+    expect(agent!.loadSkills).toBe(false);
+    expect(agent!.systemPrompt).toBe("body");
   });
 
   it("honours explicit YAML booleans", () => {
     const agent = parseAgentMarkdown(
-      "---\nname: a\ndescription: d\nreplaceSystemPrompt: false\ncontextFiles: true\n---\nbody\n",
+      "---\nname: a\ndescription: d\ncontextFiles: true\nloadSkills: true\n---\nbody\n",
       "/tmp/a.md",
     );
-    expect(agent!.replaceSystemPrompt).toBe(false);
     expect(agent!.contextFiles).toBe(true);
+    expect(agent!.loadSkills).toBe(true);
+  });
+});
+
+describe("genericAgent", () => {
+  it("builds a context-aware delegate config", () => {
+    const agent = genericAgent();
+    expect(agent.name).toBe("generic");
+    expect(agent.contextFiles).toBe(true);
+    expect(agent.loadSkills).toBe(true);
+    expect(agent.systemPrompt).toBe("");
+    expect(agent.tools).toBeUndefined();
+    expect(agent.model).toBeUndefined();
+    expect(agent.filePath).toBeUndefined();
   });
 
+  it("accepts an optional model", () => {
+    expect(genericAgent("google/gemini-2.5-flash").model).toBe(
+      "google/gemini-2.5-flash",
+    );
+  });
 });
 
 describe("discoverAgents", () => {
   it("loads agents from a directory", () => {
     const dir = mkdtempSync(join(tmpdir(), "glin-agents-"));
-    writeFileSync(join(dir, "extract.md"), sampleAgentMd);
+    writeFileSync(join(dir, "example.md"), sampleAgentMd);
     writeFileSync(join(dir, "readme.txt"), "ignore me");
     writeFileSync(
       join(dir, "broken.md"),
@@ -75,7 +94,7 @@ describe("discoverAgents", () => {
 
     const agents = discoverAgents(dir);
     expect(agents).toHaveLength(1);
-    expect(agents[0].name).toBe("extract");
+    expect(agents[0].name).toBe("example");
   });
 
   it("returns empty for missing directory", () => {
@@ -88,23 +107,23 @@ describe("discoverAgents", () => {
 });
 
 describe("buildChildArgs", () => {
-  const base: AgentConfig = {
-    name: "extract",
+  const named: AgentConfig = {
+    name: "example",
     description: "d",
     model: "google/gemini-2.5-flash",
     tools: ["read", "write", "bash"],
-    replaceSystemPrompt: true,
     contextFiles: false,
-    systemPrompt: "You extract pages.",
-    filePath: "/tmp/extract.md",
+    loadSkills: false,
+    systemPrompt: "You do a specialized task.",
+    filePath: "/tmp/example.md",
   };
 
-  const promptPath = "/tmp/glin-subagent-xyz/prompt-extract.md";
+  const promptPath = "/tmp/glin-subagent-xyz/prompt-example.md";
 
-  it("builds an isolated child invocation with prompt file path", () => {
+  it("builds an isolated named-agent invocation", () => {
     const args = buildChildArgs(
-      base,
-      "Extract raw/example.com/post",
+      named,
+      "Do the specialized thing",
       promptPath,
     );
     expect(args).toEqual([
@@ -116,30 +135,48 @@ describe("buildChildArgs", () => {
       "google/gemini-2.5-flash",
       "--tools",
       "read,write,bash",
+      "--exclude-tools",
+      "subagent",
       "--no-context-files",
       "--no-skills",
-      "--no-extensions",
-      "--no-approve",
       "--system-prompt",
       promptPath,
-      "Task: Extract raw/example.com/post",
+      "Task: Do the specialized thing",
     ]);
   });
 
-  it("appends system prompt when replaceSystemPrompt is false", () => {
-    const args = buildChildArgs(
-      { ...base, replaceSystemPrompt: false },
-      "do it",
-      promptPath,
-    );
-    expect(args).toContain("--append-system-prompt");
-    expect(args).toContain(promptPath);
+  it("builds a generic context-aware invocation", () => {
+    const args = buildChildArgs(genericAgent(), "Summarize the open threads");
+    expect(args).toEqual([
+      "--mode",
+      "json",
+      "-p",
+      "--no-session",
+      "--exclude-tools",
+      "subagent",
+      "Task: Summarize the open threads",
+    ]);
+    expect(args).not.toContain("--no-extensions");
+    expect(args).not.toContain("--no-context-files");
+    expect(args).not.toContain("--no-skills");
+    expect(args).not.toContain("--approve");
+    expect(args).not.toContain("--no-approve");
     expect(args).not.toContain("--system-prompt");
+    expect(args).not.toContain("--tools");
+  });
+
+  it("passes model on the generic agent", () => {
+    const args = buildChildArgs(
+      genericAgent("google/gemini-2.5-flash"),
+      "do it",
+    );
+    expect(args).toContain("--model");
+    expect(args).toContain("google/gemini-2.5-flash");
   });
 
   it("allows context files when contextFiles is true", () => {
     const args = buildChildArgs(
-      { ...base, contextFiles: true },
+      { ...named, contextFiles: true },
       "do it",
       promptPath,
     );
@@ -149,7 +186,7 @@ describe("buildChildArgs", () => {
   it("omits model, tools, and prompt flags when unset", () => {
     const args = buildChildArgs(
       {
-        ...base,
+        ...named,
         model: undefined,
         tools: undefined,
         systemPrompt: "",
@@ -159,12 +196,11 @@ describe("buildChildArgs", () => {
     expect(args).not.toContain("--model");
     expect(args).not.toContain("--tools");
     expect(args).not.toContain("--system-prompt");
-    expect(args).not.toContain("--append-system-prompt");
     expect(args.at(-1)).toBe("Task: task");
   });
 
   it("inlines files as @args before the task message", () => {
-    const args = buildChildArgs(base, "do it", promptPath, [
+    const args = buildChildArgs(named, "do it", promptPath, [
       "/kb/raw/example.com/post/meta.json",
       "/kb/raw/example.com/post/index.html",
     ]);
@@ -177,10 +213,10 @@ describe("buildChildArgs", () => {
       "google/gemini-2.5-flash",
       "--tools",
       "read,write,bash",
+      "--exclude-tools",
+      "subagent",
       "--no-context-files",
       "--no-skills",
-      "--no-extensions",
-      "--no-approve",
       "--system-prompt",
       promptPath,
       "@/kb/raw/example.com/post/meta.json",
@@ -240,14 +276,14 @@ describe("formatAgentList", () => {
     expect(
       formatAgentList([
         {
-          name: "extract",
-          description: "Turn raw into sources",
-          replaceSystemPrompt: true,
+          name: "example",
+          description: "A specialized agent",
           contextFiles: false,
+          loadSkills: false,
           systemPrompt: "",
           filePath: "x",
         },
       ]),
-    ).toBe("extract: Turn raw into sources");
+    ).toBe("example: A specialized agent");
   });
 });

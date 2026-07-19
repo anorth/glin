@@ -1,5 +1,5 @@
 /**
- * glin Pi extension — extract tool + minimal subagent runner.
+ * glin Pi extension — extract tool + subagent runner.
  */
 
 import type { AgentToolResult } from "@earendil-works/pi-agent-core";
@@ -12,7 +12,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { Type } from "typebox";
 
-import { buildChildArgs, discoverAgents, formatAgentList, resolveInlineFiles, type AgentConfig } from "./agents.ts";
+import { buildChildArgs, discoverAgents, formatAgentList, genericAgent, resolveInlineFiles, type AgentConfig } from "./agents.ts";
 import { registerExtractTool } from "./extract.ts";
 
 interface UsageStats {
@@ -43,12 +43,20 @@ interface SubagentDetails {
 
 
 const SubagentParams = Type.Object({
-  agent: Type.String({
-    description: "Name of the bundled agent to invoke",
-  }),
   task: Type.String({
-    description: "Task for the agent.",
+    description: "Task for the subagent.",
   }),
+  agent: Type.Optional(
+    Type.String({
+      description:
+        'Optional named bundled agent (from the extension\'s agents/ directory). Omit or pass "generic" for the context-aware delegate.',
+    }),
+  ),
+  model: Type.Optional(
+    Type.String({
+      description: "Optional model override (provider/id).",
+    }),
+  ),
   files: Type.Optional(
     Type.Array(Type.String(), {
       description:
@@ -64,28 +72,34 @@ export default function (pi: ExtensionAPI): void {
     name: "subagent",
     label: "Subagent",
     description: [
-      "Delegate a task to a specialized glin subagent with an isolated context and (usually) a pinned model.",
-      "Available agents are discovered from the extension's bundled agents/ directory.",
+      "Delegate a task to an isolated child pi process.",
+      "Omit agent (or pass \"generic\") for the context-aware delegate: loads AGENTS.md and KB skills; loads SYSTEM.md if the KB is already trusted; default tools including extract; subagent tool excluded to avoid nesting.",
+      "Optional agent selects a specialized bundled agent from agents/ when one exists.",
       "Optional files are inlined in full into the agent's context.",
     ].join(" "),
     parameters: SubagentParams,
 
     async execute(_toolCallId, params, signal, onUpdate, ctx) {
-      const agents = discoverAgents();
-      const agent = agents.find((a) => a.name === params.agent);
-
-      if (!agent) {
-        const available = formatAgentList(agents);
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Unknown agent: "${params.agent}". Available agents: ${available}`,
-            },
-          ],
-          details: { results: [] },
-          isError: true,
-        };
+      let agent: AgentConfig;
+      if (!params.agent || params.agent === "generic") {
+        agent = genericAgent(params.model);
+      } else {
+        const agents = discoverAgents();
+        const named = agents.find((a) => a.name === params.agent);
+        if (!named) {
+          const available = formatAgentList(agents);
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Unknown agent: "${params.agent}". Omit agent (or pass "generic") for the context-aware delegate. Available named agents: ${available}`,
+              },
+            ],
+            details: { results: [] },
+            isError: true,
+          };
+        }
+        agent = params.model ? { ...named, model: params.model } : named;
       }
 
       let inlineFiles: string[] = [];
@@ -135,7 +149,7 @@ export default function (pi: ExtensionAPI): void {
     },
 
     renderCall(args, theme) {
-      const agentName = args.agent || "...";
+      const agentName = (args.agent as string | undefined) || "generic";
       const preview = args.task
         ? args.task.length > 60
           ? `${args.task.slice(0, 60)}...`
@@ -146,11 +160,16 @@ export default function (pi: ExtensionAPI): void {
         files && files.length > 0
           ? `\n  ${theme.fg("dim", `+${files.length} file${files.length > 1 ? "s" : ""}`)}`
           : "";
+      const model = args.model as string | undefined;
+      const modelNote = model
+        ? `\n  ${theme.fg("dim", model)}`
+        : "";
       const text =
         theme.fg("toolTitle", theme.bold("subagent ")) +
         theme.fg("accent", agentName) +
         `\n  ${theme.fg("dim", preview)}` +
-        filesNote;
+        filesNote +
+        modelNote;
       return new Text(text, 0, 0);
     },
 

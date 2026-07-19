@@ -144,8 +144,11 @@ The glin Pi extension (when installed) also provides:
 
 - `extract({ archive, output })` — turn a `raw/` archive into a `sources/` node
   (see the extract skill). Do not extract yourself when this tool is available.
-- `subagent({ agent, task, files })` — delegate to a specialized subagent; optional
-  files may be inlined into the prompt.
+- `subagent({ task, agent?, files?, model? })` — delegate to an isolated child pi.
+  Omit `agent` (or pass `"generic"`) for the context-aware delegate: loads AGENTS.md
+  and KB skills; loads SYSTEM.md if the KB is trusted; keeps extract and other
+  extension tools, but not nested `subagent`. Optional `agent` selects a specialized
+  bundled agent when one exists; optional `files` are inlined into the prompt.
 
 Backlinks and the search index are regenerable caches derived from the files; the
 files are always authoritative.

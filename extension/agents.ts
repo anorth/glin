@@ -1,8 +1,7 @@
-/**
- * Bundled agent discovery and child-process argv construction.
- *
- * Agents live next to this module under agents/*.md — not in the KB's .pi/agents/.
- */
+// Bundled agent discovery and child-process argv construction.
+// Agents live next to this module under agents/*.md — not in the KB's .pi/agents/.
+// The default (unnamed) subagent is a generic context-aware delegate; named
+// agents are optional specializations discovered from agents/.
 
 import { parseFrontmatter } from "@earendil-works/pi-coding-agent";
 import {
@@ -20,17 +19,35 @@ export interface AgentConfig {
   description: string;
   tools?: string[];
   model?: string;
-  /** When true (default), replace the default system prompt with the agent body. */
-  replaceSystemPrompt: boolean;
-  /** When true, allow AGENTS.md / CLAUDE.md context files. Default false. */
+  // When true, allow AGENTS.md context files.
   contextFiles: boolean;
+  // When true, allow KB skill discovery.
+  loadSkills: boolean;
+  // If non-empty, passed via `--system-prompt` to the child pi, replacing the
+  // default / project SYSTEM.md. Empty means no override (generic delegate).
   systemPrompt: string;
-  filePath: string;
+  // Absolute path to the agent's markdown file; unset for the built-in generic agent.
+  filePath?: string;
 }
 
 type AgentFrontmatter = Record<string, unknown>;
 
-/** Load all valid agent definitions from a directory (defaults to bundled agents/). */
+// Built-in generic delegate: no bundled prompt; AGENTS.md + KB skills; default
+// tools including other extension tools (e.g. extract). SYSTEM.md loads only when
+// the project is already trusted (same as the parent). Excludes the subagent tool
+// to avoid nested subagent recursion.
+export function genericAgent(model?: string): AgentConfig {
+  return {
+    name: "generic",
+    description: "Context-aware delegate with AGENTS.md and KB skills (SYSTEM.md if trusted)",
+    model,
+    contextFiles: true,
+    loadSkills: true,
+    systemPrompt: "",
+  };
+}
+
+// Load all valid agent definitions from a directory (defaults to bundled agents/).
 export function discoverAgents(agentsDir?: string): AgentConfig[] {
   const dir =
     agentsDir ?? join(dirname(fileURLToPath(import.meta.url)), "agents");
@@ -76,23 +93,19 @@ export function formatAgentList(agents: AgentConfig[]): string {
   return agents.map((a) => `${a.name}: ${a.description}`).join("; ");
 }
 
-/**
- * Build argv for a child `pi` process that runs the agent in isolation.
- *
- * `promptFilePath` is a temp file containing the agent system prompt (Pi's
- * resolvePromptInput reads existing paths as file contents).
- *
- * `inlineFiles` are absolute paths passed to the child as `@<file>` arguments.
- * Pi inlines their full contents verbatim into the initial user message,
- * bypassing the read tool's size cap (50KB / 2000 lines).
- *
- * Isolation defaults (when replaceSystemPrompt / !contextFiles):
- *   --system-prompt <file>  replaces the default coding prompt
- *   --no-context-files      skips AGENTS.md / CLAUDE.md
- *   --no-skills             skips skill discovery
- *   --no-extensions         prevents loading this extension (no recursion)
- *   --no-approve            ignores project-local .pi/ files (incl. SYSTEM.md)
- */
+// Build argv for a child `pi` process.
+//
+// `promptFilePath` is a temp file containing the agent system prompt (Pi's
+// resolvePromptInput reads existing paths as file contents).
+//
+// `inlineFiles` are absolute paths passed to the child as `@<file>` arguments.
+// Pi inlines their full contents verbatim into the initial user message,
+// bypassing the read tool's size cap (50KB / 2000 lines).
+//
+// Always passes `--exclude-tools subagent` so the child can use other extension
+// tools (e.g. extract) without nested subagent recursion. Other isolation knobs
+// follow AgentConfig (generic vs named). Does not pass `--approve` / `--no-approve`:
+// the child inherits the project's saved trust decision in the same cwd.
 export function buildChildArgs(
   agent: AgentConfig,
   task: string,
@@ -108,19 +121,19 @@ export function buildChildArgs(
     args.push("--tools", agent.tools.join(","));
   }
 
+  // Keep extension tools (extract, etc.); only block nested subagent calls.
+  args.push("--exclude-tools", "subagent");
+
   if (!agent.contextFiles) {
     args.push("--no-context-files");
   }
 
-  // Always isolate from project skills/extensions and project-local config.
-  args.push("--no-skills", "--no-extensions", "--no-approve");
+  if (!agent.loadSkills) {
+    args.push("--no-skills");
+  }
 
   if (promptFilePath) {
-    if (agent.replaceSystemPrompt) {
-      args.push("--system-prompt", promptFilePath);
-    } else {
-      args.push("--append-system-prompt", promptFilePath);
-    }
+    args.push("--system-prompt", promptFilePath);
   }
 
   for (const file of inlineFiles ?? []) {
@@ -136,11 +149,9 @@ export interface ResolveInlineFilesResult {
   error?: string;
 }
 
-/**
- * Resolve caller-supplied paths to absolute files under `cwd`.
- * Relative paths are joined with `cwd`; absolute paths are used as-is.
- * Fails if any path is missing or not a regular file.
- */
+// Resolve caller-supplied paths to absolute files under `cwd`.
+// Relative paths are joined with `cwd`; absolute paths are used as-is.
+// Fails if any path is missing or not a regular file.
 export function resolveInlineFiles(
   cwd: string,
   paths: string[],
@@ -159,8 +170,8 @@ export function resolveInlineFiles(
   return { files };
 }
 
-/** Parse a single agent markdown file into an AgentConfig, or null if invalid. */
-// Visible for testing
+// Parse a single agent markdown file into an AgentConfig, or null if invalid.
+// Visible for testing.
 export function parseAgentMarkdown(
   content: string,
   filePath: string,
@@ -177,11 +188,17 @@ export function parseAgentMarkdown(
     description,
     tools: parseTools(frontmatter.tools),
     model: asNonEmptyString(frontmatter.model),
-    replaceSystemPrompt: typeof frontmatter.replaceSystemPrompt === "boolean" ? frontmatter.replaceSystemPrompt : true,
-    contextFiles: typeof frontmatter.contextFiles === "boolean" ? frontmatter.contextFiles : false,
+    // Named agents default to isolated (no context files / no skills) unless
+    // frontmatter opts in — room to specialize later without changing the generic path.
+    contextFiles: asBoolean(frontmatter.contextFiles, false),
+    loadSkills: asBoolean(frontmatter.loadSkills, false),
     systemPrompt: body.trim(),
     filePath,
   };
+}
+
+function asBoolean(value: unknown, defaultValue: boolean): boolean {
+  return typeof value === "boolean" ? value : defaultValue;
 }
 
 function asNonEmptyString(value: unknown): string | undefined {

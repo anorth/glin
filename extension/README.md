@@ -3,7 +3,7 @@
 Registers:
 
 - **`extract`** — `raw/` archive → `sources/` markdown node (images → `assets/`)
-- **`subagent`** — bundled agent via isolated `pi` child (no agents bundled yet)
+- **`subagent`** — isolated child `pi`; default is a generic context-aware delegate
 
 ## Extract
 
@@ -16,6 +16,27 @@ extract({
 
 `archive` and `output` are KB-relative. Default model: `google/gemini-3.1-flash-lite`
 (optional `model` override). Prompts: `extract-prompt.md`, `summary-prompt.md`.
+
+## Subagent
+
+```
+subagent({ task: "..." })
+subagent({ task: "...", files: ["path/to/file"], model: "provider/id" })
+subagent({ agent: "name", task: "..." })  # optional specialized bundled agent
+```
+
+Omit `agent` (or pass `"generic"`) for the generic delegate: loads `AGENTS.md` and
+KB skills; inherits default Pi tools and other extension tools (e.g. `extract`);
+excludes only the `subagent` tool (`--exclude-tools subagent`) to avoid nesting.
+It never passes `--approve`/`--no-approve`, so `.pi/SYSTEM.md` and other trust-gated
+project resources load only if the KB folder is already trusted (saved decision or
+`defaultProjectTrust`) — same as the parent pi process, since the child runs in the
+same directory.
+
+Named agents (if any) live in `agents/*.md` and are isolated by default (no context
+files, no skills). A non-empty agent body is passed as `--system-prompt`, which
+replaces project `SYSTEM.md`. They still inherit ambient project trust (settings,
+etc.) rather than forcing `--no-approve`. None are bundled yet.
 
 ## Install (manual, until `glin init` / `upgrade`)
 
@@ -44,6 +65,6 @@ extension/
   extract.ts            # extract tool
   extract-prompt.md
   summary-prompt.md
-  agents.ts / agents/   # subagent runner (empty agents/)
+  agents.ts / agents/   # subagent runner + optional named agents (empty)
   README.md
 ```
