@@ -41,8 +41,8 @@ Each layer is a projection of the one above it and can be regenerated from it.
 <kb-root>/
   AGENTS.md      per-KB conventions (owned by the human; never overwritten)
   raw/           immutable fetched originals
-  sources/       faithful extractions          (type: source)
-  wiki/          working knowledge space        (type: wiki)
+  sources/       faithful extractions          (type: a content kind, e.g. Article)
+  wiki/          working knowledge space        (type: Wiki)
   assets/        pooled media store
   chats/         logs and/or summaries of interactive discussion
   index.md       top-level navigation index
@@ -61,35 +61,37 @@ There may be many raw articles and many, many files within each article director
 
 ## Node types
 
-Every markdown node declares `type`:
+Every markdown node declares `type`, naming what the node is:
 
-- `type: source` — faithful, near-immutable, cite-only.
-- `type: wiki` — fluid, freely edited and reorganized.
+- **Source nodes** use a descriptive content kind — `Article`, `Paper`,
+  `Podcast`, `Video`, `Post`, `Thread`, `Report`, etc. (Title Case, open vocabulary).
+- **Wiki nodes** use `type: Wiki`.
 
-Never mutate the content of a `source`; freely maintain anything marked `wiki`.
+Immutability follows location, not type: never mutate the content of anything under
+`sources/` (faithful, cite-only); freely maintain anything under `wiki/`.
 
 ## Frontmatter
 
 Every node opens with YAML frontmatter. These keys are read by the tools and are
-required on every node: `id`, `type`, `title`, `summary`. A node without a good
-`summary` is invisible to navigation.
+required on every node: `type`, `title`, `description`. A node without a good
+`description` is invisible to navigation.
 
-- **Source nodes** additionally carry `source_url`, `fetched` (YYYY-MM-DD), and
-  `raw` (path to the archived original). Optional: `author`, `publication`
-  (outlet / site name) — include when known, omit when not.
-- **Wiki nodes** additionally carry `updated` (YYYY-MM-DD), optional `tags`, and
-  optional `cites` (a list of source `id`s this node rests on; omit if none).
+- **Source nodes** additionally carry `resource` (the canonical source URL),
+  `fetched` (YYYY-MM-DD retrieval date), and `raw` (path to the archived
+  original). Optional: `author`, `publication` (outlet / site name) — include when
+  known, omit when not.
+- **Wiki nodes** additionally carry `timestamp` (YYYY-MM-DD), optional `tags`.
 
-IDs are stable for the life of a node and never reused: `src-<slug>` for sources,
-`wiki-<slug>` for wiki nodes. A KB may define extra keys or vocabularies in its
-`AGENTS.md`; the tools ignore keys they don't recognize, so extension is additive
-and safe.
+A node's identity is its file path — there is no `id` key. A KB may define extra
+keys or vocabularies in its `AGENTS.md`; the tools ignore keys they don't
+recognize, so extension is additive and safe.
 
 ## Links and provenance
 
-- **Citation (wiki → source):** by source `id` in the `cites` list. This is the
-  provenance spine — cite the source, never paste its content, and never
-  attribute a claim to a source that doesn't support it.
+- **Citation (wiki → source):** a markdown link to the source node, collected
+  under a `# Citations` heading at the foot of the node. This is the provenance
+  spine — cite the source, never paste its content, and never attribute a claim to
+  a source that doesn't support it.
 - **Cross-link (wiki → wiki, source → source):** markdown link with readable display text.
   Prefer vault-root absolute links, e.g. `[effect sizes](/wiki/methodology/effect-sizes.md)` or
   `[original article](/sources/example.com/post.md)`.
@@ -104,10 +106,10 @@ backlinks, grep, and use the search tool. Read the specific nodes a question
 needs rather than assuming a vector store.
 
 - **`index.md` files** are human-readable markdown maps: each directory has one,
-  listing its children with their summaries so you (or another agent) can find
+  listing its children with their descriptions so you (or another agent) can find
   your way. Read them to navigate. They are derived views of the frontmatter
-  summaries beneath them — the summaries are the source of truth. The convention
-  for writing and rolling them up lives in the curation skill.
+  descriptions beneath them — the descriptions are the source of truth. The
+  convention for writing and rolling them up lives in the curation skill.
 - **The search index** is a separate, tool-internal structure (text and/or
   vector). You never read it as a file — you query it through `glin search`. Its
   format is the tool's concern, not yours.
@@ -136,7 +138,7 @@ and roughly when to reach for it.
 - `glin search <query>` — query the search index over the KB to find relevant
   content.
 - `glin reindex` — regenerate `index.md` navigation files from frontmatter
-  summaries.
+  descriptions.
 - `glin backlinks` — rebuild the backlinks cache (which nodes cite or link to a
   given node).
 

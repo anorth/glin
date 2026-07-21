@@ -27,7 +27,8 @@ extract({
 - `archive` — KB-relative `raw/…` directory (tool reads it; you do not pass file contents)
 - `output` — KB-relative path under `sources/`, **title-based** filename (not a URL slug);
   place per wiki conventions for material shape; prefer minimal punctuation in the name
-- Frontmatter `id` stays `src-<slug>` from the archive’s final path component — not from the title
+- Node identity is the file path; the tool emits OKF frontmatter
+  (`type`, `title`, `description`, `resource`, `fetched`, `raw`, optional `author`/`publication`)
 
 Re-extract overwrites by default; don’t ask or warn.
 

@@ -66,17 +66,17 @@ describe("runExtract", () => {
 
   function modelCallReturning(
     body: string,
-    summary: {
-      summary?: string;
+    meta: {
+      description?: string;
       author?: string | null;
       publication?: string | null;
     } = {},
   ): ExtractModelCall {
     const payload = {
-      summary: summary.summary ?? "A short navigation summary of the article.",
-      author: summary.author === undefined ? null : summary.author,
-      publication:
-        summary.publication === undefined ? null : summary.publication,
+      description:
+        meta.description ?? "A short navigation description of the article.",
+      author: meta.author === undefined ? null : meta.author,
+      publication: meta.publication === undefined ? null : meta.publication,
     };
     let call = 0;
     return async () => {
@@ -124,19 +124,21 @@ describe("runExtract", () => {
     expect(result.isError).toBeFalsy();
     expect(result.details.adopted).toEqual([`${PNG_HASH}.png`]);
     const written = await readFile(join(kbRoot, OUTPUT), "utf8");
-    expect(written).toContain('id: "src-blog-my-post"');
-    expect(written).toContain("type: source");
+    expect(written).not.toMatch(/^id:/m);
+    expect(written).toContain("type: Article");
     expect(written).toContain('title: "My Post"');
     expect(written).toContain('author: "Ada Lovelace"');
     expect(written).toContain('publication: "Example Journal"');
     expect(written).not.toContain("Wrong Author");
     expect(written).not.toContain("Wrong Pub");
-    expect(written).toContain('source_url: "https://example.com/blog/my-post/"');
+    expect(written).toContain('resource: "https://example.com/blog/my-post/"');
+    expect(written).not.toMatch(/^source_url:/m);
     expect(written).toContain('fetched: "2026-07-14"');
     expect(written).toContain(`raw: "${ARCHIVE}/"`);
     expect(written).toContain(
-      'summary: "A short navigation summary of the article."',
+      'description: "A short navigation description of the article."',
     );
+    expect(written).not.toMatch(/^summary:/m);
     expect(written).toContain(`![chart](/assets/${PNG_HASH}.png)`);
     expect(written).toContain("# My Post");
     expect(await readFile(join(kbRoot, "assets", `${PNG_HASH}.png`))).toEqual(
@@ -253,7 +255,7 @@ describe("runExtract", () => {
     expect(written).toContain('title: "My Post"');
   });
 
-  it("infers author and publication from summary when meta omits them", async () => {
+  it("infers author and publication from description call when meta omits them", async () => {
     const kbRoot = await setupKb();
     const body = ["# My Post", "", "Hello."].join("\n");
 

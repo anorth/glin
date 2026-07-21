@@ -4,7 +4,7 @@
  * Flow:
  *   1. Validate KB-relative archive + output paths; read meta.json + index.html
  *   2. Body call: inline index.html only; model returns markdown body (no frontmatter)
- *   3. Require leading H1; summary call returns JSON (summary + optional author/publication)
+ *   3. Require leading H1; summary call returns JSON (description + optional author/publication)
  *   4. adoptSourceAssets rewrites archive-relative image refs to /assets/<hash>.<ext>
  *   5. Fail hard (write nothing) on adoption errors or invalid image refs
  *      (must be existing /assets/… or data:/blob:)
@@ -13,7 +13,7 @@
  *   7. Write frontmatter + body once
  *
  * The outer LLM chooses the title-based output path; this tool never invents it.
- * Frontmatter id is src-<archive-slug>, independent of the filename.
+ * Source type is currently always Article (HTML fetch); identity is the file path.
  * Body must start with an H1; that H1 is preferred for frontmatter title over meta.title.
  */
 
@@ -34,7 +34,7 @@ import {
 import { Container, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Type } from "typebox";
 
@@ -333,7 +333,7 @@ export async function runExtract(
 
   emit("Summarizing…");
 
-  let summaryText: string;
+  let descriptionText: string;
   let inferredAuthor: string | null = null;
   let inferredPublication: string | null = null;
   try {
@@ -354,9 +354,11 @@ export async function runExtract(
     }
     const parsed = parseSummaryPayload(result.text);
     if (!parsed) {
-      return fail("Summary model returned invalid JSON (need summary, author, publication).");
+      return fail(
+        "Summary model returned invalid JSON (need description, author, publication).",
+      );
     }
-    summaryText = parsed.summary;
+    descriptionText = parsed.description;
     inferredAuthor = parsed.author;
     inferredPublication = parsed.publication;
   } catch (error) {
@@ -411,9 +413,9 @@ export async function runExtract(
     // meta.json wins; model fills gaps only
     author: optionalMetaString(meta.author) ?? inferredAuthor,
     publication: optionalMetaString(meta.publication) ?? inferredPublication,
-    sourceUrl,
+    resource: sourceUrl,
     fetched,
-    summary: summaryText,
+    description: descriptionText,
   });
   const document = `${frontmatter}\n${bodyMarkdown.trimStart()}`;
 
@@ -461,21 +463,19 @@ function resolveDefaultModelCall(
   return { modelId, modelCall };
 }
 
-/** Build source-node YAML frontmatter from deterministic fields + summary. */
+/** Build source-node YAML frontmatter from deterministic fields + description. */
 function buildSourceFrontmatter(fields: {
   archiveRel: string;
   title: string;
   author: string | null;
   publication: string | null;
-  sourceUrl: string;
+  resource: string;
   fetched: string;
-  summary: string;
+  description: string;
 }): string {
-  const slug = basename(fields.archiveRel);
   const lines = [
     "---",
-    `id: ${yamlScalar(`src-${slug}`)}`,
-    "type: source",
+    "type: Article",
     `title: ${yamlScalar(fields.title)}`,
   ];
   if (fields.author) {
@@ -485,10 +485,10 @@ function buildSourceFrontmatter(fields: {
     lines.push(`publication: ${yamlScalar(fields.publication)}`);
   }
   lines.push(
-    `source_url: ${yamlScalar(fields.sourceUrl)}`,
+    `resource: ${yamlScalar(fields.resource)}`,
     `fetched: ${yamlScalar(fields.fetched)}`,
     `raw: ${yamlScalar(`${fields.archiveRel}/`)}`,
-    `summary: ${yamlScalar(fields.summary)}`,
+    `description: ${yamlScalar(fields.description)}`,
     "---",
     "",
   );
@@ -532,9 +532,9 @@ function leadingH1Title(markdown: string): string | null {
   return title.length > 0 ? title : null;
 }
 
-/** Parse summary-model JSON into summary + optional author/publication. */
+/** Parse summary-model JSON into description + optional author/publication. */
 function parseSummaryPayload(text: string): {
-  summary: string;
+  description: string;
   author: string | null;
   publication: string | null;
 } | null {
@@ -552,14 +552,14 @@ function parseSummaryPayload(text: string): {
     return null;
   }
   const obj = parsed as Record<string, unknown>;
-  const summary = normalizeSummary(
-    typeof obj.summary === "string" ? obj.summary : "",
+  const description = normalizeDescription(
+    typeof obj.description === "string" ? obj.description : "",
   );
-  if (!summary) {
+  if (!description) {
     return null;
   }
   return {
-    summary,
+    description,
     author: optionalInferredString(obj.author),
     publication: optionalInferredString(obj.publication),
   };
@@ -586,8 +586,8 @@ function stripJsonFences(text: string): string {
   return fenced ? fenced[1].trim() : text;
 }
 
-/** Collapse summary prose to a single plain-text paragraph. */
-function normalizeSummary(text: string): string {
+/** Collapse description prose to a single plain-text paragraph. */
+function normalizeDescription(text: string): string {
   return text
     .trim()
     .replace(/^["'`]+|["'`]+$/g, "")

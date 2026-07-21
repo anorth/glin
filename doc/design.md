@@ -111,8 +111,8 @@ A knowledge base is structured as follows:
   .pi/SYSTEM.md  Pi system prompt override
   AGENTS.md      per-KB conventions (human-owned; never overwritten by glin)
   raw/           immutable fetched originals
-  sources/       faithful extractions          (type: source)
-  wiki/          working knowledge space         (type: wiki)
+  sources/       faithful extractions          (type: a content kind, e.g. Article)
+  wiki/          working knowledge space       (type: Wiki)
   assets/        pooled media store
   index.md       top-level navigation index
 ```
@@ -123,42 +123,57 @@ institution with several publications nests a level deeper; a standalone paper
 sits directly in `sources/`. Depth is variable, used only as far as the material
 needs.
 
-### 4.3 Node types
+### 4.3 Node types & immutability
 
-Every markdown node declares `type` in its frontmatter:
+Every markdown node declares `type` in its frontmatter, following OKF's model
+where `type` names *what a concept is* and consumers tolerate unknown values:
 
-- `type: source` — faithful, near-immutable, cite-only.
-- `type: wiki` — fluid, freely edited and reorganized.
+- **Source nodes** carry a descriptive content kind — `Article`, `Paper`,
+  `Podcast`, `Video`, `Post`, `Thread`, `Report`, etc. (Title Case, open
+  vocabulary; the extract tool chooses it, hinted by `meta.json` where possible).
+- **Wiki nodes** carry `type: Wiki`. (We keep the neutral label `Wiki` rather than
+  `derived`/`concept`: wiki content isn't necessarily derived-from-sources — it can
+  originate from the human or a chat — and isn't necessarily concept-organized.)
 
-This single distinction is all the tooling needs: never mutate a `source`'s
-content; freely maintain anything `wiki`. We deliberately chose the neutral label
-`wiki` over `derived`/`concept`, because wiki content isn't necessarily
-derived-from-sources (it can originate from the human or a chat) and isn't
-necessarily concept-organized.
+**Immutability is location-based, not type-based.** Anything under `sources/` is
+faithful and cite-only — never mutate its content; the only reason to change one is
+to re-extract it from its raw original. Anything under `wiki/` is fluid and freely
+maintained. An earlier draft overloaded `type: source|wiki` to carry this, but the
+directory already implies it, so mutability now keys off **location** and any tool
+check uses the path (not `type === "source"`), leaving `type` free to describe the
+source kind.
 
 ### 4.4 Frontmatter
 
-Every node opens with YAML frontmatter. Required on every node: `id`, `type`,
-`title`, `summary`. A node without a good `summary` is effectively invisible,
-because indexes and navigation are built from summaries.
+Every node opens with YAML frontmatter. Required on every node: `type`, `title`,
+`description`. A node without a good `description` is effectively invisible,
+because indexes and navigation are built from descriptions. (`description`
+replaces the earlier `summary`, matching OKF.)
 
-- **Source nodes** additionally carry: `source_url`, `fetched` (YYYY-MM-DD),
-  `author`, and `raw` (path to the archived original).
-- **Wiki nodes** additionally carry: `updated` (YYYY-MM-DD), optional `tags`, and
-  optional `cites` (list of source `id`s the node rests on; omitted if none).
+- **Source nodes** additionally carry: `resource` (the canonical source URL —
+  OKF's `resource`, replacing `source_url`), `fetched` (YYYY-MM-DD retrieval date;
+  a glin extension kept because retrieval time is distinct from last-modified),
+  `raw` (path to the archived original; glin extension), and optional `author` and
+  `publication`.
+- **Wiki nodes** additionally carry: `timestamp` (date of last meaningful change,
+  `YYYY-MM-DD` — a valid ISO 8601 date; OKF's `timestamp`, replacing `updated`.
+  OKF's examples use a full datetime, but we keep date-only for consistency with
+  `fetched`) and optional `tags`.
+
+There is no `id` field and no `cites` field (see §4.5 and §4.6).
 
 Example source node:
 
 ```yaml
 ---
-id: src-hattie-visible-learning-2023
-type: source
+type: Article
 title: "Visible Learning: The Sequel"
 author: John Hattie
-source_url: https://…
+publication: …
+resource: https://…
 fetched: 2026-06-14
 raw: raw/…/
-summary: >
+description: >
   Meta-synthesis updating effect sizes across influences on achievement.
 ---
 ```
@@ -167,41 +182,51 @@ Example wiki node:
 
 ```yaml
 ---
-id: wiki-effect-sizes
-type: wiki
+type: Wiki
 title: Effect Sizes in Education Research
 tags: [methodology, meta-analysis]
-cites: [src-hattie-visible-learning-2023]
-updated: 2026-06-20
-summary: >
+timestamp: 2026-06-20
+description: >
   What effect sizes mean, why 0.4 became a benchmark, and key critiques.
 ---
 ```
 
-The schema is intentionally lean and **additively extensible**: a KB may define
-extra keys or vocabularies in its `AGENTS.md`, and the tools ignore keys they
-don't recognize, so extension is safe.
+The schema is a superset of OKF v0.1 (required `type`; recommended
+`title`/`description`/`resource`/`tags`/`timestamp`) plus glin extensions
+(`fetched`, `raw`, `author`, `publication`). It stays **additively extensible**: a
+KB may define extra keys or vocabularies in its `AGENTS.md`, and the tools ignore
+keys they don't recognize, so extension is safe.
 
-### 4.5 IDs & naming
+### 4.5 Identity & naming
 
-IDs are stable for the life of a node and never reused: `src-<slug>` for sources,
-`wiki-<slug>` for wiki nodes. Stability matters because wiki files move freely
-during reorganization; a stable id lets references and backlinks survive the move.
+A node's identity is its **file path** (OKF's Concept ID = the path with `.md`
+removed); there is no separate `id` field. Source filenames are human and
+title-derived; wiki files are named for their subject and organized freely.
+Because identity is the path, moving or renaming a node changes its identity, so
+inbound references must be repaired on move (§4.6) — a workflow guarantee rather
+than a stable-handle indirection. Sources (the main reference targets) are
+near-immutable and rarely renamed, so this is cheap in practice, and a `doctor`
+broken-link check backstops it.
 
 ### 4.6 Links & provenance
 
-Two distinct kinds of link, chosen for different stability needs:
+All links are markdown links with readable display text and **vault-root absolute
+paths**, e.g. `[effect sizes](/wiki/methodology/effect-sizes.md)` — the form OKF
+and Obsidian both support, chosen over Obsidian-specific `[[wikilinks]]` for
+portability across agents and tools.
 
-- **Citations (wiki → source)** are by source `id`, in the `cites` frontmatter
-  list. This is the provenance spine. Sources are archival and rarely move, so
-  id-based citation keeps provenance robust. The agent must never invent a
-  citation or attribute a claim to a source that doesn't support it.
-- **Cross-links (wiki → wiki, source → source)** are markdown links with readable
-  display text. Prefer vault-root absolute paths, e.g.
-  `[effect sizes](/wiki/methodology/effect-sizes.md)` — the form OKF and
-  Obsidian both support. Absolute links stay valid when a node moves within its
-  subtree; repair inbound links on rename/move anyway (see below). Chosen over
-  Obsidian-specific `[[wikilinks]]` for portability across agents and tools.
+- **Citations (wiki → source)** are the provenance spine: markdown links to source
+  nodes collected under a `# Citations` heading at the foot of the node (OKF §8).
+  The agent must never invent a citation or attribute a claim to a source that
+  doesn't support it. Provenance is derived by scanning these links — there is no
+  `cites` frontmatter and no ids. `# Citations` is a **wiki-node, curation-time**
+  concern: a freshly extracted source carries no citations — its own provenance is
+  its `resource` URL, so `extract` never emits the section. glin's `sources/` is
+  exactly OKF's blessed "references/ subdirectory that mirrors external material as
+  first-class concepts" (§8), so a wiki citation is just a bundle-relative link
+  into `sources/`.
+- **Cross-links (wiki ↔ wiki, source ↔ source)** are the same markdown links, used
+  inline to express general relationships.
 
 **Link integrity is a workflow guarantee, not a format property.** When a node is
 moved or renamed, repairing every inbound link/citation is part of the move, not
@@ -223,7 +248,11 @@ There are two unrelated things called "index"; keep them distinct:
   summaries roll up the tree and parent indexes stay small. A soft branching
   guideline (keep a directory under ~15–20 children; else introduce a grouping
   subdirectory) keeps indexes bounded. The authoring convention for these lives in
-  the curation skill.
+  the curation skill. Per OKF (§6) `index.md` is a reserved, non-concept file and
+  carries **no frontmatter** — the sole exception being the bundle-root `index.md`,
+  which may hold `okf_version` and nothing else — so `glin reindex` must not stamp
+  `type`/frontmatter into them. The listing format is OKF's bullet form:
+  `* [Title](url) - description`.
 - **The search index** is a *tool-internal* structure (text and/or vector). The
   agent never reads it as a file; it queries it through `glin search`. Its format
   is glin's concern only.
@@ -249,6 +278,19 @@ Retrieval is structural: indexes, frontmatter summaries, links, backlinks, grep,
 and `glin search`. This directly follows Karpathy's finding that index files plus
 per-doc summaries make vector RAG unnecessary at this scale. Embedding-based search
 is a possible future addition (see §11), not a current dependency.
+
+### 4.10 OKF alignment
+
+glin's data model is an intentional **superset of the Open Knowledge Format (OKF)
+v0.1** (https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md):
+markdown concept documents with YAML frontmatter, a required `type`, vault-root
+absolute links, `index.md` progressive-disclosure listings, and optional `log.md`
+history. The KB-root `index.md` declares `okf_version: "0.1"`. glin adds structure
+OKF leaves open — the `raw/`/`sources/`/`wiki/`/`assets/` tiers, of which `raw/`
+and `assets/` are non-concept adjuncts rather than OKF documents — plus the
+extension keys noted in §4.4. An OKF consumer can read a glin KB; conformance is
+the reason for the field naming adopted above (`description`, `resource`,
+`timestamp`, path identity, `# Citations`).
 
 ---
 
@@ -303,6 +345,14 @@ KB's `AGENTS.md`. It also means anything the tools depend on (layout, the core
 frontmatter keys, link mechanics) is invariant and lives in `SYSTEM.md`, not
 per-KB config — we chose convention over parameterizing the tool on these.
 
+There is a wrinkle: `SYSTEM.md` is only loaded by glin-aware Pi sessions, so a
+generic agent dropped in the vault (which reads `AGENTS.md`, not `SYSTEM.md`) can't
+see the structure. To keep the shared invariants discoverable without letting glin
+clobber a human-owned file, glin stamps them into a **managed, delimited block**
+inside each KB's `AGENTS.md` (the same `BEGIN/END` marker pattern beads uses),
+regenerated on `upgrade`; the human owns everything outside the markers.
+`SYSTEM.md` then references that block rather than duplicating the schema.
+
 ---
 
 ## 6. Instruction & config files
@@ -311,10 +361,12 @@ per-KB config — we chose convention over parameterizing the tool on these.
   Holds the tier model, directory layout, node types, frontmatter schema, link and
   provenance mechanics, the navigation/retrieval model, media placement, and the
   tool manifest. Kept reasonably lean because it is always resident.
-- **KB `AGENTS.md`** (per-KB; human-owned; never overwritten). A thin layer:
-  topic/purpose/scope, the emergent organization of that KB's `wiki/`, any per-KB
-  frontmatter extensions, the source-image eager/lazy policy, key-source
-  inventory, and working notes.
+- **KB `AGENTS.md`** (per-KB; human-owned outside the glin-managed block). A thin
+  human layer — topic/purpose/scope, the emergent organization of that KB's
+  `wiki/`, any per-KB frontmatter extensions, the source-image eager/lazy policy,
+  key-source inventory, and working notes — plus a **glin-managed delimited block**
+  (refreshed on `upgrade`) carrying the shared structural invariants so non-glin
+  agents can discover them (see §5.4).
 
 Detailed *procedures* (fetching, extracting, curating, health checks) live in
 **skills**, loaded on demand, not in the always-resident prompts.
