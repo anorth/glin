@@ -183,7 +183,7 @@ describe("adoptSourceAssets", () => {
   it("ignores absolute and escaping refs", async () => {
     const { kbRoot, archivePath, imageBasename } = await setupArchive();
     const markdown = [
-      `![vault](/assets/${imageBasename})`,
+      `![figure](/assets/${imageBasename})`,
       `![escape](../outside.png)`,
       `![ok](images/${imageBasename})`,
     ].join("\n");
@@ -192,7 +192,7 @@ describe("adoptSourceAssets", () => {
 
     expect(result.adopted).toEqual([imageBasename]);
     expect(result.markdown).toBe([
-      `![vault](/assets/${imageBasename})`,
+      `![figure](/assets/${imageBasename})`,
       `![escape](../outside.png)`,
       `![ok](/assets/${imageBasename})`,
     ].join("\n"));

@@ -3,8 +3,9 @@
 *Internal design record. This document captures the goals, architecture, and
 design decisions behind glin so that development can continue with full context.
 It is written to be self-contained — the key conventions are restated here — but
-where it disagrees with the live `SYSTEM.md`, the `AGENTS.md` templates, or the source
-code, those are authoritative and this record should be updated to match. It
+where it disagrees with the live KB `SYSTEM.md` / `AGENTS.md` (or their sources
+under `templates/`), or the source code, those are authoritative and this record
+should be updated to match. It
 reflects decisions made during early development and is expected to evolve.*
 
 ---
@@ -109,7 +110,7 @@ A knowledge base is structured as follows:
 ```
 <kb-root>/
   .pi/SYSTEM.md  Pi system prompt override
-  AGENTS.md      per-KB conventions (human-owned; never overwritten by glin)
+  AGENTS.md      per-KB conventions (human-owned outside a glin-managed block)
   raw/           immutable fetched originals
   sources/       faithful extractions          (type: a content kind, e.g. Article)
   wiki/          working knowledge space       (type: Wiki)
@@ -210,10 +211,10 @@ broken-link check backstops it.
 
 ### 4.6 Links & provenance
 
-All links are markdown links with readable display text and **vault-root absolute
+All links are markdown links with readable display text and **kb-root absolute
 paths**, e.g. `[effect sizes](/wiki/methodology/effect-sizes.md)` — the form OKF
-and Obsidian both support, chosen over Obsidian-specific `[[wikilinks]]` for
-portability across agents and tools.
+calls bundle-relative (leading `/`) and Obsidian also supports, chosen over
+Obsidian-specific `[[wikilinks]]` for portability across agents and tools.
 
 - **Citations (wiki → source)** are the provenance spine: markdown links to source
   nodes collected under a `# Citations` heading at the foot of the node (OKF §8).
@@ -262,7 +263,7 @@ There are two unrelated things called "index"; keep them distinct:
 - Diagrams, math, and small tables are **text**, not files: mermaid fenced blocks,
   LaTeX math, and markdown tables. They diff cleanly and travel with their node.
 - Real image/figure files live in a **pooled per-KB `assets/` store**, referenced
-  by vault-root absolute path (e.g. `/assets/abcd123.png`). Pooling keeps
+  by kb-root absolute path (e.g. `/assets/abcd123.png`). Pooling keeps
   references stable when nodes move and gives free deduplication.
 - Images downloaded with a source may initially be referenced from that source's
   raw `images/` folder; the intended end state is to **copy the images a source
@@ -283,7 +284,7 @@ is a possible future addition (see §11), not a current dependency.
 
 glin's data model is an intentional **superset of the Open Knowledge Format (OKF)
 v0.1** (https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md):
-markdown concept documents with YAML frontmatter, a required `type`, vault-root
+markdown concept documents with YAML frontmatter, a required `type`, kb-root
 absolute links, `index.md` progressive-disclosure listings, and optional `log.md`
 history. The KB-root `index.md` declares `okf_version: "0.1"`. glin adds structure
 OKF leaves open — the `raw/`/`sources/`/`wiki/`/`assets/` tiers, of which `raw/`
@@ -335,38 +336,49 @@ questions in order:
 1. *Does the agent need this in context at all?* If not → it lives in **glin's
    code** (e.g. the `index.md` byte format, the search index format, fetch
    internals).
-2. If yes, *is it the same across all KBs?* If yes → **`SYSTEM.md`** (tool-owned,
-   ships with glin, safe to overwrite on upgrade). If KB-specific → **the KB's
-   `AGENTS.md`** (human-owned, never overwritten).
+2. If yes, *is it the same across all KBs?* If yes → **tool-owned content**
+   (ships with glin, safe to refresh on upgrade). If KB-specific → **the
+   human-owned sections of the KB's `AGENTS.md`** (never overwritten).
 
-The operative test is **ownership: who may overwrite the file.** This makes
-`glin upgrade` able to refresh `SYSTEM.md` and skills safely while never touching a
-KB's `AGENTS.md`. It also means anything the tools depend on (layout, the core
-frontmatter keys, link mechanics) is invariant and lives in `SYSTEM.md`, not
-per-KB config — we chose convention over parameterizing the tool on these.
+Tool-owned content has two homes, not one. `SYSTEM.md` is only loaded by
+glin-aware Pi sessions, so a generic agent dropped in the KB (which reads
+`AGENTS.md`, not `SYSTEM.md`) would otherwise miss the structure. Shared
+structural invariants therefore live in a **managed, delimited block** inside
+each KB's `AGENTS.md` (`<!-- BEGIN GLIN -->` … `<!-- END GLIN -->`, the same
+marker pattern beads uses), regenerated on `upgrade`; the human owns everything
+outside the markers. `SYSTEM.md` holds behaviour, the detailed tier model, media
+guidance, and the tool manifest — always resident for glin sessions — and points
+at the managed block for node types / frontmatter / link mechanics rather than
+owning those as the sole copy.
 
-There is a wrinkle: `SYSTEM.md` is only loaded by glin-aware Pi sessions, so a
-generic agent dropped in the vault (which reads `AGENTS.md`, not `SYSTEM.md`) can't
-see the structure. To keep the shared invariants discoverable without letting glin
-clobber a human-owned file, glin stamps them into a **managed, delimited block**
-inside each KB's `AGENTS.md` (the same `BEGIN/END` marker pattern beads uses),
-regenerated on `upgrade`; the human owns everything outside the markers.
-`SYSTEM.md` then references that block rather than duplicating the schema.
+The operative test remains **ownership: who may overwrite what.** `glin upgrade`
+refreshes `SYSTEM.md`, skills, and the managed `AGENTS.md` block, and never
+touches human-owned `AGENTS.md` sections. Layout, core frontmatter keys, and link
+mechanics stay convention (not per-KB config) — they just ship via the managed
+block so non-glin agents can discover them.
 
 ---
 
 ## 6. Instruction & config files
 
-- **`SYSTEM.md`** (ships with glin; shared invariants; overwritten on upgrade).
-  Holds the tier model, directory layout, node types, frontmatter schema, link and
-  provenance mechanics, the navigation/retrieval model, media placement, and the
-  tool manifest. Kept reasonably lean because it is always resident.
-- **KB `AGENTS.md`** (per-KB; human-owned outside the glin-managed block). A thin
-  human layer — topic/purpose/scope, the emergent organization of that KB's
-  `wiki/`, any per-KB frontmatter extensions, the source-image eager/lazy policy,
-  key-source inventory, and working notes — plus a **glin-managed delimited block**
-  (refreshed on `upgrade`) carrying the shared structural invariants so non-glin
-  agents can discover them (see §5.4).
+- **`SYSTEM.md`** (ships with glin; overwritten on upgrade). Behaviour posture
+  (act vs ask, git as safety net), the detailed three-tier model, directory
+  skeleton, raw-archive traversal notes, navigation/retrieval posture, media and
+  assets placement, and the tool manifest. Kept lean enough to stay always
+  resident. For node types, frontmatter keys, and citation mechanics it points at
+  the managed `AGENTS.md` block (and names OKF) rather than being the only copy of
+  that schema.
+- **KB `AGENTS.md`** (per-KB). A thin human layer — topic/purpose/scope, the
+  emergent organization of that KB's `wiki/`, any per-KB frontmatter extensions,
+  the source-image eager/lazy policy, key-source inventory, and working notes —
+  plus a **glin-managed delimited block** at the bottom (refreshed on `upgrade`)
+  carrying the structural invariants a non-glin agent needs: layout, `raw/` /
+  `sources/` as glin-maintained read-only cite targets, `wiki/` as partly
+  tool-maintained, node types and frontmatter, kb-root links and `# Citations`,
+  `index.md` navigation, `okf_version`, and a link to the OKF spec. The managed
+  block reiterates the OKF-shaped rules an agent must follow; it does not require
+  reading the external spec. It does not cover media/assets policy or the search
+  index (those stay in `SYSTEM.md` / tools).
 
 Detailed *procedures* (fetching, extracting, curating, health checks) live in
 **skills**, loaded on demand, not in the always-resident prompts.
@@ -395,10 +407,9 @@ glin/
     cli.ts              arg parsing + dispatch
     commands/           one file per subcommand
     lib/                reusable logic (fetch/clean, frontmatter, …)
-  templates/            stamped into new KBs by `glin init`
-    SYSTEM.md
-    AGENTS.md           the KB skeleton
-    skills/
+  templates/            sources stamped into KBs by `glin init` / `upgrade`
+                        (KB-root names: SYSTEM.md, AGENTS.md, skills/;
+                         filenames under templates/ are an implementation detail)
   extension/            Pi integration (later)
   docs/                 this document lives here
 ```
@@ -418,12 +429,13 @@ arguably a record → JSON; decide deliberately when building it.)
 ### 8.2 Planned
 
 - **`glin init <name>`** — stamp out a new KB (skeleton + `SYSTEM.md` + `AGENTS.md`
-  skeleton + skills + `git init`). Deferred until the structure and skill set
-  stabilize; it's still first-occurrence (only one KB exists).
-- **`glin upgrade`** — refresh tool-owned files (`SYSTEM.md`, skills) in an
-  existing KB without touching its `AGENTS.md`. (Note: `init` is for *new* KBs;
-  getting updated skills into an *existing* KB is `upgrade`'s job, or a manual
-  copy for now.)
+  with human placeholders and the glin-managed block + skills + `git init`).
+  Deferred until the structure and skill set stabilize.
+- **`glin upgrade`** — refresh tool-owned content in an existing KB: overwrite
+  `SYSTEM.md` and skills, and regenerate only the delimited glin-managed block
+  inside `AGENTS.md`, leaving human-owned sections untouched. (Note: `init` is
+  for *new* KBs; getting updated prompts/skills into an *existing* KB is
+  `upgrade`'s job, or a manual copy for now.)
 - **`glin read <url>`** — read a single article from the web to stdout.
 - **`glin fetch <url>`** — fetch a single article from the web into `raw/`.
 - **`glin reindex`** — regenerate `index.md` files from frontmatter summaries.

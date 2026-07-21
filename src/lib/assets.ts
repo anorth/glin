@@ -17,7 +17,7 @@ export type AdoptSourceAssetsOptions = {
 };
 
 export type AdoptSourceAssetsResult = {
-  /** Markdown with adopted image refs rewritten to vault-root /assets/ paths. */
+  /** Markdown with adopted image refs rewritten to kb-root /assets/ paths. */
   markdown: string;
   /** Basenames copied into assets/ this run. */
   adopted: string[];
@@ -30,7 +30,7 @@ export type AdoptSourceAssetsResult = {
 /**
  * Copies every archive-relative image referenced in extracted markdown into the
  * pooled assets/ store under a content-hash basename (collision-suffixed when
- * needed), and rewrites those refs to vault-root absolute `/assets/<hash>.<ext>`
+ * needed), and rewrites those refs to kb-root absolute `/assets/<hash>.<ext>`
  * (leading slash; OKF-style bundle-relative).
  *
  * data: and blob: URLs are left untouched. Missing or unreadable archive files
@@ -78,7 +78,7 @@ export async function adoptSourceAssets(
 
 /**
  * Image refs that are not valid in a written source node after adoption.
- * Allowed: vault-root `/assets/<file>` that resolves to an existing file under
+ * Allowed: kb-root `/assets/<file>` that resolves to an existing file under
  * kbRoot/assets/, plus data: and blob: URLs. Everything else (archive-relative
  * leftovers, http(s), invented /assets paths, …) is returned sorted.
  */

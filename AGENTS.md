@@ -9,8 +9,8 @@ When you work here, you are building glin itself — not curating a knowledge ba
 A knowledge base is a directory of plaintext files, with three major directories:
 
 - **raw/** — immutable fetched originals (HTML, PDFs, images, transcripts).
-- **sources/** — faithful markdown extractions of raw, one per article/paper/episode (`type: source`, near-immutable, cite-only).
-- **wiki/** — the fluid working knowledge space the LLM builds and reorganizes (`type: wiki`).
+- **sources/** — faithful markdown extractions of raw, one per article/paper/episode (`type: Article` etc., near-immutable, cite-only).
+- **wiki/** — the fluid working knowledge space the LLM builds and reorganizes (`type: Wiki`).
 
 An LLM agent (via Pi) does the reading, writing, and reorganizing; a human rarely edits the files.
 Retrieval is structural — index files, frontmatter summaries, links, grep, search.
@@ -36,7 +36,7 @@ glin's only job is to land `raw/` on disk correctly — download the page and it
 rewrite image references to the local copies, and keep a truthful record of the original.
 
 This repo also holds the templates glin stamps into new knowledge bases (`glin init`) and, later, a Pi extension for tighter integration.
-Because the templates ship with glin, `glin upgrade` may overwrite a KB's `SYSTEM.md` and skills, but never its `AGENTS.md`, which the KB owns.
+Because the templates ship with glin, `glin upgrade` may overwrite a KB's `SYSTEM.md` and skills, and regenerate the delimited glin-managed block inside `AGENTS.md`; human-owned sections of `AGENTS.md` are never overwritten.
 
 ## Repo layout
 
@@ -47,10 +47,7 @@ glin/
     cli.ts              arg parsing + dispatch
     commands/           one file per subcommand
     lib/                reusable logic (fetch, html rewrite, frontmatter, …)
-  templates/            stamped into new KBs by `glin init`
-    SYSTEM.md
-    AGENTS.md           the KB skeleton
-    skills/
+  templates/            sources stamped into KBs by `glin init` / `upgrade`
   extension/            Pi integration (later)
 ```
 

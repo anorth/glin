@@ -29,6 +29,8 @@ extract({
   place per wiki conventions for material shape; prefer minimal punctuation in the name
 - Node identity is the file path; the tool emits OKF frontmatter
   (`type`, `title`, `description`, `resource`, `fetched`, `raw`, optional `author`/`publication`)
+  matching the schema in the glin-managed block of `AGENTS.md`
+- Do not hand-edit `sources/` — re-extract to change a source
 
 Re-extract overwrites by default; don’t ask or warn.
 
