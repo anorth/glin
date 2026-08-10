@@ -495,11 +495,12 @@ Deliberately not built yet, with the seam that anticipates each:
 - **`glin init` / `glin upgrade`** — deferred until the template/structure
   stabilizes; the ownership model already makes them safe to add later.
 - **Extraction and curation skills** — extraction is the immediate next piece.
-- **Media ingestion (PDF / audio / video)** — currently reported in `linked_media`
-  but not downloaded. Audio/video will need their own extraction (ASR for audio →
-  a transcript that becomes the retained "raw" for that source, since keeping the
-  heavy original is optional). A non-HTML target URL (e.g. a direct PDF link)
-  currently causes `fetch` to stop cleanly; handling those is a later addition.
+- **Media ingestion (audio / video; linked PDFs)** — direct PDF fetch targets are
+  supported (`document.pdf` + `meta.json`; extract via unpdf → `type: Paper`).
+  PDFs/audio/video linked from HTML pages are still only reported in `linked_media`
+  (fetch the PDF URL separately). Audio/video will need their own extraction (ASR
+  for audio → a transcript that becomes the retained "raw" for that source, since
+  keeping the heavy original is optional).
 - **A mechanical link-extraction mode** — intentionally *not* added; first confirm
   whether a stripped `read` of an index is small enough for the agent to read
   directly. Recurring difficulty there is the signal to build it.

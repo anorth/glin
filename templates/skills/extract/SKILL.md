@@ -1,8 +1,8 @@
 ---
 name: extract
 description: >
-  Extract fetched articles from raw/ into faithful sources/ markdown nodes.
-  Use after articles have been archived with glin fetch, or whenever the user
+  Extract fetched articles or PDFs from raw/ into faithful sources/ markdown nodes.
+  Use after material has been archived with glin fetch, or whenever the user
   asks to extract, ingest into sources, or turn a raw archive into a source.
 ---
 
@@ -10,8 +10,9 @@ description: >
 
 ## When to use
 
-After one or more articles have been fetched into `raw/` and the user wants them as cite-able `sources/` nodes.
+After one or more articles or PDFs have been fetched into `raw/` and the user wants them as cite-able `sources/` nodes.
 Extraction is a separate step from fetching — do not extract unless asked, or unless the user asked you to continue past fetch.
+HTML archives yield `type: Article`; PDF archives (`document.pdf`) yield `type: Paper`.
 
 ## How
 

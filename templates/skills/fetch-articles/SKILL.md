@@ -13,11 +13,13 @@ description: >
 
 ## Fetching a single article
 
-Use this when the user points you at a **single** article URL and wants it fetched.
+Use this when the user points you at a **single** article or PDF URL and wants it fetched.
 
-- Use `glin fetch <url>` to fetch the article.
+- Use `glin fetch <url>` to fetch the article or PDF.
 
-This will persist the article to disk in `raw/`, from where content may subsequently be extracted into `sources/`.
+This will persist the material to disk in `raw/` (HTML archives as `index.html`,
+PDF archives as `document.pdf`), from where content may subsequently be extracted
+into `sources/`.
 
 ## Fetching multiple articles from an index or directory page
 
@@ -58,6 +60,8 @@ many of the articles it links to be fetched.
 5. **Report back.** Summarise what was fetched, and surface anything notable in
    each fetch's `linked_media` — PDFs, audio, or video the post links but that
    `fetch` did not download — so the user can see what is being left behind.
+   If the user wants a linked PDF archived, run `glin fetch` on that PDF URL
+   separately (direct PDF URLs are valid fetch targets).
 
 ## User instruction precedence
 

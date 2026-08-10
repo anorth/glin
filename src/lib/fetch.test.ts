@@ -306,7 +306,66 @@ describe("fetchPage", () => {
     expect(indexHtml).not.toContain("body{color:red}");
   });
 
-  it("rejects non-HTML responses", async () => {
+  it("archives a direct PDF URL as document.pdf", async () => {
+    const baseDir = await setupKb();
+    const pdfBody = Buffer.from("%PDF-1.4 fake pdf bytes");
+
+    const result = await fetchPage({
+      sourceUrl: PDF_URL,
+      baseDir,
+      group: "papers",
+      httpGet: async () => ({
+        url: PDF_URL,
+        status: 200,
+        contentType: "application/pdf",
+        charset: "utf-8",
+        body: pdfBody,
+      }),
+      log: () => {},
+    });
+
+    expect(result.archive_path).toBe("raw/example.test/papers/paper.pdf");
+    expect(result.content_type).toBe("application/pdf");
+    expect(result.filename).toBe("paper.pdf");
+    expect(result.title).toBeNull();
+    expect(result.images).toBe(0);
+    expect(result.linked_media).toEqual([]);
+
+    const archivePath = join(baseDir, result.archive_path);
+    expect(await readFile(join(archivePath, "document.pdf"))).toEqual(pdfBody);
+    const meta = JSON.parse(await readFile(join(archivePath, "meta.json"), "utf8"));
+    expect(meta.filename).toBe("paper.pdf");
+    expect(meta.content_type).toBe("application/pdf");
+    expect(meta.archive_path).toBeUndefined();
+    const entries = await readdir(archivePath);
+    expect(entries.sort()).toEqual(["document.pdf", "meta.json"]);
+  });
+
+  it("archives octet-stream responses when the URL ends in .pdf", async () => {
+    const baseDir = await setupKb();
+    const pdfBody = Buffer.from("%PDF-1.4 octets");
+
+    const result = await fetchPage({
+      sourceUrl: PDF_URL,
+      baseDir,
+      httpGet: async () => ({
+        url: PDF_URL,
+        status: 200,
+        contentType: "application/octet-stream",
+        charset: "utf-8",
+        body: pdfBody,
+      }),
+      log: () => {},
+    });
+
+    expect(result.content_type).toBe("application/octet-stream");
+    expect(result.filename).toBe("paper.pdf");
+    expect(await readFile(join(baseDir, result.archive_path, "document.pdf"))).toEqual(
+      pdfBody,
+    );
+  });
+
+  it("rejects non-HTML non-PDF responses", async () => {
     const baseDir = await setupKb();
 
     await expect(
@@ -322,7 +381,7 @@ describe("fetchPage", () => {
         }),
         log: () => {},
       }),
-    ).rejects.toThrow(/Expected HTML but received text\/plain/);
+    ).rejects.toThrow(/Expected HTML or PDF but received text\/plain/);
 
     const rawEntries = await readdir(join(baseDir, "raw"));
     expect(rawEntries).toHaveLength(0);

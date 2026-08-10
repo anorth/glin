@@ -31,7 +31,8 @@
     "remark-stringify": "^11.0.0",
     "typebox": "^1.1.38",
     "unified": "^11.0.5",
-    "unist-util-visit": "^5.1.0"
+    "unist-util-visit": "^5.1.0",
+    "unpdf": "^1.8.0"
   },
   "devDependencies": {
     "@earendil-works/pi-agent-core": "^0.80.3",

@@ -59,7 +59,9 @@ depth is variable, used only as far as the material needs. The internal shape of
 
 ## Raw archives
 
-The `raw/` directory contains the raw HTML and metadata of the archived articles, typically structured as `<domain>/[<group>/]<slug>/`.
+The `raw/` directory contains archived fetch targets, typically structured as
+`<domain>/[<group>/]<slug>/`. HTML archives hold `index.html` (+ localized assets);
+PDF archives hold `document.pdf`. Both include `meta.json`.
 There may be many raw articles and many, many files within each article directory, so traverse the `raw/` directory carefully. Use patterns and globs to limit output.
 
 ## Nodes and schema
@@ -99,8 +101,10 @@ needs rather than assuming a vector store.
 and in the relevant skill; this manifest exists so you know a tool is available
 and roughly when to reach for it.
 
-- `glin fetch <url>` — download a page and its images into `raw/`, rewriting image
-  references to local copies.
+- `glin fetch <url>` — download a page (and its images) or a PDF into `raw/`.
+  HTML image references are rewritten to local copies. Direct PDF URLs are valid
+  targets; PDFs linked from an HTML page are listed in `linked_media` but not
+  downloaded — fetch those URLs separately if needed.
 - `glin read <url>` — fetch a page over HTTP and print cleaned content to stdout
   (no disk writes); use for index/listing pages you only need to inspect.
 - `glin search <query>` — query the search index over the KB to find relevant

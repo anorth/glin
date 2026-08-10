@@ -73,6 +73,10 @@ export function isHtmlContentType(contentType: string): boolean {
   return type === "text/html" || type === "application/xhtml+xml";
 }
 
+export function isPdfContentType(contentType: string): boolean {
+  return parseMediaType(contentType) === "application/pdf";
+}
+
 export function isTextContentType(contentType: string): boolean {
   const type = contentType.toLowerCase();
   if (type.startsWith("text/")) {

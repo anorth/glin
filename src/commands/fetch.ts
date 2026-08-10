@@ -7,14 +7,19 @@ export function registerFetchCommand(program: Command): void {
     .command("fetch")
     .summary("Fetch a web page over plain HTTP and archive it under raw/")
     .description(
-      `Fetch a web page over plain HTTP and archive it faithfully under raw/.
+      `Fetch a web page or PDF over plain HTTP and archive it faithfully under raw/.
 
-Downloads HTML as delivered — no headless browser, no JavaScript — and writes:
+HTML targets (no headless browser, no JavaScript) write:
   raw/<domain>/[<group>/]<slug>/
     index.html   page HTML with localized <img> and stylesheet references
     images/      downloaded image assets
     styles/      downloaded stylesheet assets
     meta.json    fetch record (same fields as stdout, without archive_path)
+
+PDF targets (Content-Type application/pdf, or octet-stream with a .pdf URL) write:
+  raw/<domain>/[<group>/]<slug>/
+    document.pdf the PDF bytes
+    meta.json    fetch record; includes filename (original URL basename) when present
 
 Each localized <img> gets a data-original-src attribute; each localized stylesheet
 <link> gets data-original-href. A Content-Security-Policy meta tag is inserted at the
@@ -25,8 +30,9 @@ otherwise left as-is; linked media is reported but not downloaded.
 
 Prints a JSON object to stdout (progress to stderr) with source_url, final_url,
 fetched timestamp, content_type, title, canonical_url, optional author and
-publication (omitted when absent), images (count localized), stylesheets
-(count localized), linked_media, scripts_stripped, styles_stripped, and archive_path.`,
+publication (omitted when absent), optional filename (PDF archives), images
+(count localized), stylesheets (count localized), linked_media, scripts_stripped,
+styles_stripped, and archive_path.`,
     )
     .argument("<url>", "URL to fetch")
     .option("-g, --group <name>", "Optional grouping subdirectory under the domain")

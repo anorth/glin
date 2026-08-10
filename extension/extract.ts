@@ -2,8 +2,10 @@
  * Dedicated extract tool — two toolless in-process LLM calls, no child tools.
  *
  * Flow:
- *   1. Validate KB-relative archive + output paths; read meta.json + index.html
- *   2. Body call: inline index.html only; model returns markdown body (no frontmatter)
+ *   1. Validate KB-relative archive + output paths; read meta.json +
+ *      index.html (HTML) or document.pdf (PDF)
+ *   2. Body call: inline HTML, or unpdf text from the PDF; model returns markdown
+ *      body (no frontmatter)
  *   3. Require leading H1; summary call returns JSON (description + optional author/publication)
  *   4. adoptSourceAssets rewrites archive-relative image refs to /assets/<hash>.<ext>
  *   5. Fail hard (write nothing) on adoption errors or invalid image refs
@@ -13,7 +15,7 @@
  *   7. Write frontmatter + body once
  *
  * The outer LLM chooses the title-based output path; this tool never invents it.
- * Source type is currently always Article (HTML fetch); identity is the file path.
+ * Source type: Article for HTML archives, Paper for PDF archives.
  * Body must start with an H1; that H1 is preferred for frontmatter title over meta.title.
  */
 
@@ -39,10 +41,12 @@ import { fileURLToPath } from "node:url";
 import { Type } from "typebox";
 
 import { adoptSourceAssets, findInvalidSourceImageRefs } from "../src/lib/assets.ts";
+import { extractPdfText } from "../src/lib/pdf.ts";
 
 const DEFAULT_MODEL = "google/gemini-3.1-flash-lite";
 const EXTENSION_DIR = dirname(fileURLToPath(import.meta.url));
 const EXTRACT_PROMPT_PATH = join(EXTENSION_DIR, "extract-prompt.md");
+const EXTRACT_PDF_PROMPT_PATH = join(EXTENSION_DIR, "extract-pdf-prompt.md");
 const SUMMARY_PROMPT_PATH = join(EXTENSION_DIR, "summary-prompt.md");
 
 const ExtractParams = Type.Object({
@@ -257,21 +261,45 @@ export async function runExtract(
 
   const metaPath = join(archivePath, "meta.json");
   const htmlPath = join(archivePath, "index.html");
-  if (
-    !existsSync(archivePath) ||
-    !existsSync(metaPath) ||
-    !existsSync(htmlPath)
-  ) {
+  const pdfPath = join(archivePath, "document.pdf");
+  const hasHtml = existsSync(htmlPath);
+  const hasPdf = existsSync(pdfPath);
+  if (!existsSync(archivePath) || !existsSync(metaPath) || (!hasHtml && !hasPdf)) {
     return fail(
-      `Archive incomplete or missing (need meta.json + index.html): ${archiveRel}`,
+      `Archive incomplete or missing (need meta.json + index.html or document.pdf): ${archiveRel}`,
     );
   }
 
+  const archiveKind: "html" | "pdf" = hasHtml ? "html" : "pdf";
+  const sourceType = archiveKind === "pdf" ? "Paper" : "Article";
+
   let meta: ArchiveMeta;
-  let indexHtml: string;
+  let bodySource: { fileName: string; content: string; extractPromptPath: string; userCue: string };
   try {
     meta = JSON.parse(await readFile(metaPath, "utf8")) as ArchiveMeta;
-    indexHtml = await readFile(htmlPath, "utf8");
+    if (archiveKind === "html") {
+      bodySource = {
+        fileName: `${archiveRel}/index.html`,
+        content: await readFile(htmlPath, "utf8"),
+        extractPromptPath: EXTRACT_PROMPT_PATH,
+        userCue:
+          "Extract the main content of this HTML page into faithful markdown.\nReturn only the markdown body (no frontmatter). Start with an H1 title.",
+      };
+    } else {
+      emit("Extracting PDF text…");
+      const pdfBytes = new Uint8Array(await readFile(pdfPath));
+      const pdfText = await extractPdfText(pdfBytes);
+      if (!pdfText) {
+        return fail(`PDF text extraction produced no text: ${archiveRel}/document.pdf`);
+      }
+      bodySource = {
+        fileName: `${archiveRel}/document.pdf.txt`,
+        content: pdfText,
+        extractPromptPath: EXTRACT_PDF_PROMPT_PATH,
+        userCue:
+          "Extract the main content of this PDF into faithful markdown.\nReturn only the markdown body (no frontmatter). Start with an H1 title.",
+      };
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return fail(`Failed to read archive files: ${message}`);
@@ -294,16 +322,15 @@ export async function runExtract(
 
   let bodyMarkdown: string;
   try {
-    const extractPrompt = await readFile(EXTRACT_PROMPT_PATH, "utf8");
+    const extractPrompt = await readFile(bodySource.extractPromptPath, "utf8");
     const result = await modelCall({
       systemPrompt: extractPrompt,
       userPrompt: [
-        `<file name="${archiveRel}/index.html">`,
-        indexHtml,
+        `<file name="${bodySource.fileName}">`,
+        bodySource.content,
         "</file>",
         "",
-        "Extract the main content of this HTML page into faithful markdown.",
-        "Return only the markdown body (no frontmatter). Start with an H1 title.",
+        bodySource.userCue,
       ].join("\n"),
       signal,
       onText: emit,
@@ -408,6 +435,7 @@ export async function runExtract(
   }
 
   const frontmatter = buildSourceFrontmatter({
+    type: sourceType,
     archiveRel,
     title,
     // meta.json wins; model fills gaps only
@@ -465,6 +493,7 @@ function resolveDefaultModelCall(
 
 /** Build source-node YAML frontmatter from deterministic fields + description. */
 function buildSourceFrontmatter(fields: {
+  type: "Article" | "Paper";
   archiveRel: string;
   title: string;
   author: string | null;
@@ -475,7 +504,7 @@ function buildSourceFrontmatter(fields: {
 }): string {
   const lines = [
     "---",
-    "type: Article",
+    `type: ${fields.type}`,
     `title: ${yamlScalar(fields.title)}`,
   ];
   if (fields.author) {

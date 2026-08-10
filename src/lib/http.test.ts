@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   decodeTextBody,
   isHtmlContentType,
+  isPdfContentType,
   isTextContentType,
   parseContentType,
 } from "./http.js";
@@ -50,6 +51,18 @@ describe("isHtmlContentType", () => {
   it("rejects non-html types", () => {
     expect(isHtmlContentType("text/plain")).toBe(false);
     expect(isHtmlContentType("application/pdf")).toBe(false);
+  });
+});
+
+describe("isPdfContentType", () => {
+  it("accepts application/pdf", () => {
+    expect(isPdfContentType("application/pdf")).toBe(true);
+    expect(isPdfContentType("application/pdf; charset=binary")).toBe(true);
+  });
+
+  it("rejects other types", () => {
+    expect(isPdfContentType("application/octet-stream")).toBe(false);
+    expect(isPdfContentType("text/html")).toBe(false);
   });
 });
 

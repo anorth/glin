@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { cleanHtml, findLinkedMedia, injectOfflineCsp, readAuthor, readCanonicalUrl, readPublication, rewriteImageTags, rewriteStylesheetLinks, serializeHtml, type LinkedMediaItem, } from "./html.js";
-import { ACCEPT_CSS, ACCEPT_IMAGE, decodeTextBody, httpGet as defaultHttpGet, isHtmlContentType, parseMediaType, type HttpGetFn, } from "./http.js";
+import { ACCEPT_CSS, ACCEPT_IMAGE, decodeTextBody, httpGet as defaultHttpGet, isHtmlContentType, isPdfContentType, parseMediaType, type HttpGetFn, type HttpResponse, } from "./http.js";
 import { requireBaseDir } from "./kb.js";
 import { contentHashBasename, resolveHashFilename } from "./hash-filename.js";
 import { retrievePage } from "./retrieve.js";
@@ -20,6 +20,8 @@ export interface FetchMeta {
   author?: string;
   /** Present only when the page exposes a usable publication / site name. */
   publication?: string;
+  /** Original URL basename for PDF archives (payload is always document.pdf). */
+  filename?: string;
   images: number;
   stylesheets: number;
   linked_media: LinkedMediaItem[];
@@ -41,7 +43,7 @@ export interface FetchOptions {
   httpGet?: HttpGetFn;
 }
 
-// Fetches a page and linked assets into a raw/ archive, and return archive metadata
+// Fetches a page (HTML) or PDF into a raw/ archive, and returns archive metadata
 export async function fetchPage(options: FetchOptions): Promise<FetchResult> {
   const kbRoot = requireBaseDir(options.baseDir);
   const log = options.log ?? (() => { });
@@ -53,21 +55,112 @@ export async function fetchPage(options: FetchOptions): Promise<FetchResult> {
     log,
   });
 
+  if (isPdfFetchTarget(response)) {
+    return archivePdf({
+      kbRoot,
+      sourceUrl: options.sourceUrl,
+      group: options.group,
+      response,
+      log,
+    });
+  }
+
   if (!isHtmlContentType(response.contentType)) {
     throw new Error(
-      `Expected HTML but received ${response.contentType} from ${response.url}`,
+      `Expected HTML or PDF but received ${response.contentType} from ${response.url}`,
     );
   }
 
-  const html = decodeTextBody(response.body, response.charset);
-  const { archivePath, archiveRel } = archiveDirectory(
+  return archiveHtml({
     kbRoot,
-    response.url,
+    sourceUrl: options.sourceUrl,
+    group: options.group,
+    response,
+    get,
+    log,
+    omitScripts: options.omitScripts ?? true,
+    omitStyles: options.omitStyles ?? false,
+  });
+}
+
+async function archivePdf(options: {
+  kbRoot: string;
+  sourceUrl: string;
+  group?: string;
+  response: HttpResponse;
+  log: (message: string) => void;
+}): Promise<FetchResult> {
+  const { archivePath, archiveRel } = archiveDirectory(
+    options.kbRoot,
+    options.response.url,
     options.group,
   );
 
   if (existsSync(archivePath)) {
-    log(`  replacing existing archive at ${archiveRel}`);
+    options.log(`  replacing existing archive at ${archiveRel}`);
+  }
+
+  const stagingPath = `${archivePath}.tmp-${randomBytes(4).toString("hex")}`;
+
+  try {
+    await mkdir(stagingPath, { recursive: true });
+
+    const meta: FetchMeta = {
+      source_url: options.sourceUrl,
+      final_url: options.response.url,
+      fetched: new Date().toISOString(),
+      content_type: options.response.contentType,
+      title: null,
+      canonical_url: null,
+      images: 0,
+      stylesheets: 0,
+      linked_media: [],
+      scripts_stripped: 0,
+      styles_stripped: 0,
+    };
+    const filename = originalFilenameFromUrl(options.response.url);
+    if (filename) {
+      meta.filename = filename;
+    }
+
+    await writeFile(join(stagingPath, "document.pdf"), options.response.body);
+    await writeFile(
+      join(stagingPath, "meta.json"),
+      `${JSON.stringify(meta, null, 2)}\n`,
+      "utf8",
+    );
+
+    await rm(archivePath, { recursive: true, force: true });
+    await rename(stagingPath, archivePath);
+
+    options.log(`Archived to ${archiveRel}`);
+
+    return { ...meta, archive_path: archiveRel };
+  } catch (error) {
+    await rm(stagingPath, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+async function archiveHtml(options: {
+  kbRoot: string;
+  sourceUrl: string;
+  group?: string;
+  response: HttpResponse;
+  get: HttpGetFn;
+  log: (message: string) => void;
+  omitScripts: boolean;
+  omitStyles: boolean;
+}): Promise<FetchResult> {
+  const html = decodeTextBody(options.response.body, options.response.charset);
+  const { archivePath, archiveRel } = archiveDirectory(
+    options.kbRoot,
+    options.response.url,
+    options.group,
+  );
+
+  if (existsSync(archivePath)) {
+    options.log(`  replacing existing archive at ${archiveRel}`);
   }
 
   const stagingPath = `${archivePath}.tmp-${randomBytes(4).toString("hex")}`;
@@ -94,28 +187,33 @@ export async function fetchPage(options: FetchOptions): Promise<FetchResult> {
       extensionFromContentType: () => "css",
     };
 
-    const localizeAsset = createAssetLocalizer({ stagingPath, get, log, downloaded });
-
-    const { root, title, scriptsStripped, stylesStripped } = cleanHtml(html, {
-      omitScripts: options.omitScripts ?? true,
-      omitStyles: options.omitStyles ?? false,
-      baseUrl: response.url,
+    const localizeAsset = createAssetLocalizer({
+      stagingPath,
+      get: options.get,
+      log: options.log,
+      downloaded,
     });
 
-    const canonical_url = readCanonicalUrl(root, response.url);
+    const { root, title, scriptsStripped, stylesStripped } = cleanHtml(html, {
+      omitScripts: options.omitScripts,
+      omitStyles: options.omitStyles,
+      baseUrl: options.response.url,
+    });
+
+    const canonical_url = readCanonicalUrl(root, options.response.url);
     const author = readAuthor(root);
     const publication = readPublication(root);
-    const linked_media = findLinkedMedia(root, response.url);
+    const linked_media = findLinkedMedia(root, options.response.url);
 
     const images = await rewriteImageTags({
       root,
-      baseUrl: response.url,
+      baseUrl: options.response.url,
       localize: (url) => localizeAsset(url, imageConfig),
     });
 
     const stylesheets = await rewriteStylesheetLinks({
       root,
-      baseUrl: response.url,
+      baseUrl: options.response.url,
       localize: (url) => localizeAsset(url, stylesheetConfig),
     });
 
@@ -123,9 +221,9 @@ export async function fetchPage(options: FetchOptions): Promise<FetchResult> {
 
     const meta: FetchMeta = {
       source_url: options.sourceUrl,
-      final_url: response.url,
+      final_url: options.response.url,
       fetched: new Date().toISOString(),
-      content_type: response.contentType,
+      content_type: options.response.contentType,
       title,
       canonical_url,
       images: images.localizedCount,
@@ -151,12 +249,38 @@ export async function fetchPage(options: FetchOptions): Promise<FetchResult> {
     await rm(archivePath, { recursive: true, force: true });
     await rename(stagingPath, archivePath);
 
-    log(`Archived to ${archiveRel}`);
+    options.log(`Archived to ${archiveRel}`);
 
     return { ...meta, archive_path: archiveRel };
   } catch (error) {
     await rm(stagingPath, { recursive: true, force: true });
     throw error;
+  }
+}
+
+/** PDF Content-Type, or octet-stream with a .pdf URL path. */
+function isPdfFetchTarget(response: HttpResponse): boolean {
+  if (isPdfContentType(response.contentType)) {
+    return true;
+  }
+  return (
+    parseMediaType(response.contentType) === "application/octet-stream" &&
+    extensionFromUrlPath(response.url) === "pdf"
+  );
+}
+
+/** Decoded final-path basename for meta.filename (not the on-disk document.pdf name). */
+function originalFilenameFromUrl(url: string): string | undefined {
+  try {
+    const segments = new URL(url).pathname.split("/").filter(Boolean);
+    const last = segments.at(-1);
+    if (!last) {
+      return undefined;
+    }
+    const name = decodeURIComponent(last.split("?")[0] ?? last).trim();
+    return name || undefined;
+  } catch {
+    return undefined;
   }
 }
 

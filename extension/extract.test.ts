@@ -277,4 +277,63 @@ describe("runExtract", () => {
     expect(written).toContain('author: "Grace Hopper"');
     expect(written).toContain('publication: "Naval Review"');
   });
+
+  it("PDF archive extracts to type Paper", async () => {
+    kbDir = await mkdtemp(join(tmpdir(), "glin-extract-pdf-"));
+    const archiveRel = "raw/example.com/paper.pdf";
+    const outputRel = "sources/example.com/Hello Paper.md";
+    const archivePath = join(kbDir, ...archiveRel.split("/"));
+    await mkdir(archivePath, { recursive: true });
+    await mkdir(join(kbDir, "sources", "example.com"), { recursive: true });
+    await writeFile(
+      join(archivePath, "meta.json"),
+      JSON.stringify({
+        source_url: "https://example.com/paper.pdf",
+        final_url: "https://example.com/paper.pdf",
+        fetched: "2026-08-10T12:00:00.000Z",
+        content_type: "application/pdf",
+        filename: "paper.pdf",
+      }),
+    );
+    await writeFile(join(archivePath, "document.pdf"), MINIMAL_PDF);
+
+    const body = ["# Hello Paper", "", "Hello from the PDF."].join("\n");
+    const result = await runExtract(
+      { archive: archiveRel, output: outputRel },
+      undefined,
+      undefined,
+      { cwd: kbDir },
+      { modelCall: modelCallReturning(body) },
+    );
+
+    expect(result.isError).toBeFalsy();
+    const written = await readFile(join(kbDir, outputRel), "utf8");
+    expect(written).toContain("type: Paper");
+    expect(written).toContain('title: "Hello Paper"');
+    expect(written).toContain(`raw: "${archiveRel}/"`);
+    expect(written).toContain("# Hello Paper");
+  });
 });
+
+/** Tiny one-page PDF whose text layer is "Hello". */
+const MINIMAL_PDF = new TextEncoder().encode(`%PDF-1.4
+1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj
+2 0 obj<< /Type /Pages /Kids [3 0 R] /Count 1 >>endobj
+3 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 144] /Contents 4 0 R /Resources<< /Font<< /F1 5 0 R >> >> >>endobj
+4 0 obj<< /Length 44 >>stream
+BT /F1 24 Tf 100 100 Td (Hello) Tj ET
+endstream
+endobj
+5 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000266 00000 n 
+0000000361 00000 n 
+trailer<< /Size 6 /Root 1 0 R >>
+startxref
+441
+%%EOF`);
