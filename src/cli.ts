@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { registerFetchCommand } from "./commands/fetch.js";
 import { registerInitCommand } from "./commands/init.js";
 import { registerReadCommand } from "./commands/read.js";
+import { registerUpgradeCommand } from "./commands/upgrade.js";
 import { PACKAGE_ROOT } from "./lib/paths.js";
 
 const pkg = JSON.parse(
@@ -26,5 +27,6 @@ program
 registerFetchCommand(program);
 registerReadCommand(program);
 registerInitCommand(program);
+registerUpgradeCommand(program);
 
 program.parse();
