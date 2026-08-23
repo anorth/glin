@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { registerFetchCommand } from "./commands/fetch.js";
 import { registerInitCommand } from "./commands/init.js";
 import { registerReadCommand } from "./commands/read.js";
+import { registerWebSearchCommand } from "./commands/web-search.js";
 import { registerUpgradeCommand } from "./commands/upgrade.js";
 import { PACKAGE_ROOT } from "./lib/paths.js";
 
@@ -26,6 +27,7 @@ program
 
 registerFetchCommand(program);
 registerReadCommand(program);
+registerWebSearchCommand(program);
 registerInitCommand(program);
 registerUpgradeCommand(program);
 

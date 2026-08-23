@@ -107,6 +107,9 @@ and roughly when to reach for it.
   downloaded — fetch those URLs separately if needed.
 - `glin read <url>` — fetch a page over HTTP and print cleaned content to stdout
   (no disk writes); use for index/listing pages you only need to inspect.
+- `glin web-search <query>` — discover candidate source URLs via web search (JSON
+  to stdout, no disk writes). Triage only — never archive Exa snippets into
+  `raw/` or `sources/`; `glin fetch` chosen URLs.
 - `glin search <query>` — query the search index over the KB to find relevant
   content.
 - `glin reindex` — regenerate `index.md` navigation files from frontmatter
