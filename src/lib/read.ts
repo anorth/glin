@@ -27,9 +27,9 @@ export interface ReadPageOptions {
 }
 
 export interface ReadPageResult {
-  source_url: string;
-  final_url: string;
-  content_type: string;
+  sourceUrl: string;
+  finalUrl: string;
+  contentType: string;
   title: string | null;
   content: string;
 }
@@ -55,18 +55,18 @@ export async function readPage(options: ReadPageOptions): Promise<ReadPageResult
       baseUrl: response.url,
     });
     return {
-      source_url: options.sourceUrl,
-      final_url: response.url,
-      content_type: contentType,
+      sourceUrl: options.sourceUrl,
+      finalUrl: response.url,
+      contentType: contentType,
       title,
       content: serializeHtml(root),
     };
   }
 
   return {
-    source_url: options.sourceUrl,
-    final_url: response.url,
-    content_type: contentType,
+    sourceUrl: options.sourceUrl,
+    finalUrl: response.url,
+    contentType: contentType,
     title: null,
     content: text,
   };
@@ -74,9 +74,9 @@ export async function readPage(options: ReadPageOptions): Promise<ReadPageResult
 
 export function formatReadMetadata(result: ReadPageResult): string {
   const redirect =
-    result.source_url !== result.final_url
-      ? ` (from ${result.source_url})`
+    result.sourceUrl !== result.finalUrl
+      ? ` (from ${result.sourceUrl})`
       : "";
   const titlePart = result.title !== null ? ` title: ${result.title}` : "";
-  return `final_url: ${result.final_url}${redirect} content_type: ${result.content_type}${titlePart}`;
+  return `finalUrl: ${result.finalUrl}${redirect} contentType: ${result.contentType}${titlePart}`;
 }

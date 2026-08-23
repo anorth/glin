@@ -44,7 +44,7 @@ describe("readPage", () => {
       }),
     });
 
-    expect(result.final_url).toBe(FINAL_URL);
+    expect(result.finalUrl).toBe(FINAL_URL);
     expect(result.title).toBe("Index Page");
     expect(result.content).not.toContain("noise()");
     expect(result.content).toContain('type="application/json"');
@@ -114,29 +114,29 @@ describe("readPage", () => {
 describe("formatReadMetadata", () => {
   it("includes redirect note when source and final URLs differ", () => {
     const line = formatReadMetadata({
-      source_url: "http://example.test/old",
-      final_url: "http://example.test/new/",
-      content_type: "text/html",
+      sourceUrl: "http://example.test/old",
+      finalUrl: "http://example.test/new/",
+      contentType: "text/html",
       title: "Index Page",
       content: "",
     });
 
     expect(line).toBe(
-      "final_url: http://example.test/new/ (from http://example.test/old) content_type: text/html title: Index Page",
+      "finalUrl: http://example.test/new/ (from http://example.test/old) contentType: text/html title: Index Page",
     );
   });
 
   it("omits title when null", () => {
     const line = formatReadMetadata({
-      source_url: "http://example.test/x",
-      final_url: "http://example.test/x",
-      content_type: "text/plain",
+      sourceUrl: "http://example.test/x",
+      finalUrl: "http://example.test/x",
+      contentType: "text/plain",
       title: null,
       content: "hi",
     });
 
     expect(line).toBe(
-      "final_url: http://example.test/x content_type: text/plain",
+      "finalUrl: http://example.test/x contentType: text/plain",
     );
   });
 });

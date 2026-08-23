@@ -58,7 +58,7 @@ many of the articles it links to be fetched.
    sharing a domain with others, so the archives nest sensibly; skip it when the
    domain is itself the publication.
 5. **Report back.** Summarise what was fetched, and surface anything notable in
-   each fetch's `linked_media` — PDFs, audio, or video the post links but that
+   each fetch's `linkedMedia` — PDFs, audio, or video the post links but that
    `fetch` did not download — so the user can see what is being left behind.
    If the user wants a linked PDF archived, run `glin fetch` on that PDF URL
    separately (direct PDF URLs are valid fetch targets).

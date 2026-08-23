@@ -425,6 +425,11 @@ action**, print JSON to stdout (`fetch`). Human logs/progress go to stderr, keep
 stdout cleanly machine-parseable for the calling agent. `search` prints a
 markdown listing by default (a document); `--json` is the record form.
 
+JSON field names are camelCase, including `raw/**/meta.json` (the fetch record
+without `archivePath`). YAML frontmatter is a separate vocabulary (OKF:
+`resource`, `okf_version`, …) and is not JSON. Provider request bodies (e.g. Exa)
+keep the provider's names.
+
 ### 8.2 Planned
 
 - **`glin init <name>`** — stamp out a new KB (skeleton + `SYSTEM.md` + `AGENTS.md`
@@ -496,7 +501,7 @@ Deliberately not built yet, with the seam that anticipates each:
 - **Extraction and curation skills** — extraction is the immediate next piece.
 - **Media ingestion (audio / video; linked PDFs)** — direct PDF fetch targets are
   supported (`document.pdf` + `meta.json`; extract via unpdf → `type: Paper`).
-  PDFs/audio/video linked from HTML pages are still only reported in `linked_media`
+  PDFs/audio/video linked from HTML pages are still only reported in `linkedMedia`
   (fetch the PDF URL separately). Audio/video will need their own extraction (ASR
   for audio → a transcript that becomes the retained "raw" for that source, since
   keeping the heavy original is optional).

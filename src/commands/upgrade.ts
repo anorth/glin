@@ -13,9 +13,7 @@ the delimited glin-managed block inside AGENTS.md (human-owned sections above
 the markers are left untouched), and refreshes the .pi/extensions/glin symlink.
 
 Requires AGENTS.md with BEGIN/END GLIN markers. Does not touch index.md or
-skeleton directories.
-
-Prints a JSON object to stdout with path and refreshed.`,
+skeleton directories.`,
     )
     .argument("[directory]", "Knowledge base root", ".")
     .action(async (directory: string) => {

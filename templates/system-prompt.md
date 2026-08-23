@@ -104,7 +104,7 @@ and roughly when to reach for it.
 
 - `glin fetch <url>` — download a page (and its images) or a PDF into `raw/`.
   HTML image references are rewritten to local copies. Direct PDF URLs are valid
-  targets; PDFs linked from an HTML page are listed in `linked_media` but not
+  targets; PDFs linked from an HTML page are listed in `linkedMedia` but not
   downloaded — fetch those URLs separately if needed.
 - `glin read <url>` — fetch a page over HTTP and print cleaned content to stdout
   (no disk writes); use for index/listing pages you only need to inspect.

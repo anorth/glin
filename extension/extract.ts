@@ -88,9 +88,9 @@ type ExtractDetails = {
 
 /** Fields we read from meta.json for programmatic frontmatter. */
 type ArchiveMeta = {
-  source_url?: unknown;
-  final_url?: unknown;
-  canonical_url?: unknown;
+  sourceUrl?: unknown;
+  finalUrl?: unknown;
+  canonicalUrl?: unknown;
   fetched?: unknown;
   title?: unknown;
   author?: unknown;
@@ -426,7 +426,7 @@ export async function runExtract(
   const sourceUrl = resolveSourceUrl(meta);
   if (!sourceUrl) {
     return fail(
-      "meta.json missing usable source_url / final_url / canonical_url.",
+      "meta.json missing usable sourceUrl / finalUrl / canonicalUrl.",
     );
   }
   const fetched = fetchedDate(meta.fetched);
@@ -529,12 +529,12 @@ function yamlScalar(value: string): string {
   return JSON.stringify(value);
 }
 
-/** Prefer canonical_url, then final_url, then source_url. */
+/** Prefer canonicalUrl, then finalUrl, then sourceUrl. */
 function resolveSourceUrl(meta: ArchiveMeta): string | null {
   return (
-    optionalMetaString(meta.canonical_url) ??
-    optionalMetaString(meta.final_url) ??
-    optionalMetaString(meta.source_url)
+    optionalMetaString(meta.canonicalUrl) ??
+    optionalMetaString(meta.finalUrl) ??
+    optionalMetaString(meta.sourceUrl)
   );
 }
 

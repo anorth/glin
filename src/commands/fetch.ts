@@ -14,7 +14,7 @@ HTML targets (no headless browser, no JavaScript) write:
     index.html   page HTML with localized <img> and stylesheet references
     images/      downloaded image assets
     styles/      downloaded stylesheet assets
-    meta.json    fetch record (same fields as stdout, without archive_path)
+    meta.json    fetch record (same fields as stdout, without archivePath)
 
 PDF targets (Content-Type application/pdf, or octet-stream with a .pdf URL) write:
   raw/<domain>/[<group>/]<slug>/
@@ -28,11 +28,11 @@ self, fonts from the network). Executable scripts are removed by default; data s
 (JSON blocks, etc.) are always kept. Script, srcset, and linked PDF/audio/video tags are
 otherwise left as-is; linked media is reported but not downloaded.
 
-Prints a JSON object to stdout (progress to stderr) with source_url, final_url,
-fetched timestamp, content_type, title, canonical_url, optional author and
+Prints a JSON object to stdout (progress to stderr) with sourceUrl, finalUrl,
+fetched timestamp, contentType, title, canonicalUrl, optional author and
 publication (omitted when absent), optional filename (PDF archives), images
-(count localized), stylesheets (count localized), linked_media, scripts_stripped,
-styles_stripped, and archive_path.`,
+(count localized), stylesheets (count localized), linkedMedia, scriptsStripped,
+stylesStripped, and archivePath.`,
     )
     .argument("<url>", "URL to fetch")
     .option("-g, --group <name>", "Optional grouping subdirectory under the domain")

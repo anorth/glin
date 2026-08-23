@@ -38,9 +38,9 @@ describe("runExtract", () => {
     await mkdir(join(kbDir, "sources", "example.com"), { recursive: true });
 
     const meta: Record<string, unknown> = {
-      source_url: "https://example.com/blog/my-post",
-      final_url: "https://example.com/blog/my-post/",
-      canonical_url: "https://example.com/blog/my-post/",
+      sourceUrl: "https://example.com/blog/my-post",
+      finalUrl: "https://example.com/blog/my-post/",
+      canonicalUrl: "https://example.com/blog/my-post/",
       fetched: "2026-07-14T12:00:00.000Z",
       title: "Meta Title | Example",
     };
@@ -288,10 +288,10 @@ describe("runExtract", () => {
     await writeFile(
       join(archivePath, "meta.json"),
       JSON.stringify({
-        source_url: "https://example.com/paper.pdf",
-        final_url: "https://example.com/paper.pdf",
+        sourceUrl: "https://example.com/paper.pdf",
+        finalUrl: "https://example.com/paper.pdf",
         fetched: "2026-08-10T12:00:00.000Z",
-        content_type: "application/pdf",
+        contentType: "application/pdf",
         filename: "paper.pdf",
       }),
     );

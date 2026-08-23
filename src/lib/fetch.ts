@@ -10,12 +10,12 @@ import { retrievePage } from "./retrieve.js";
 import { extensionFromUrlPath, sanitizeDomain, sanitizePathComponent, slugFromUrl, } from "./sanitize.js";
 
 export interface FetchMeta {
-  source_url: string;
-  final_url: string;
+  sourceUrl: string;
+  finalUrl: string;
   fetched: string;
-  content_type: string;
+  contentType: string;
   title: string | null;
-  canonical_url: string | null;
+  canonicalUrl: string | null;
   /** Present only when the page exposes a usable author. */
   author?: string;
   /** Present only when the page exposes a usable publication / site name. */
@@ -24,13 +24,13 @@ export interface FetchMeta {
   filename?: string;
   images: number;
   stylesheets: number;
-  linked_media: LinkedMediaItem[];
-  scripts_stripped: number;
-  styles_stripped: number;
+  linkedMedia: LinkedMediaItem[];
+  scriptsStripped: number;
+  stylesStripped: number;
 }
 
 export interface FetchResult extends FetchMeta {
-  archive_path: string;
+  archivePath: string;
 }
 
 export interface FetchOptions {
@@ -90,33 +90,33 @@ async function archivePdf(options: {
   response: HttpResponse;
   log: (message: string) => void;
 }): Promise<FetchResult> {
-  const { archivePath, archiveRel } = archiveDirectory(
+  const { archiveAbs, archiveRel } = archiveDirectory(
     options.kbRoot,
     options.response.url,
     options.group,
   );
 
-  if (existsSync(archivePath)) {
+  if (existsSync(archiveAbs)) {
     options.log(`  replacing existing archive at ${archiveRel}`);
   }
 
-  const stagingPath = `${archivePath}.tmp-${randomBytes(4).toString("hex")}`;
+  const stagingPath = `${archiveAbs}.tmp-${randomBytes(4).toString("hex")}`;
 
   try {
     await mkdir(stagingPath, { recursive: true });
 
     const meta: FetchMeta = {
-      source_url: options.sourceUrl,
-      final_url: options.response.url,
+      sourceUrl: options.sourceUrl,
+      finalUrl: options.response.url,
       fetched: new Date().toISOString(),
-      content_type: options.response.contentType,
+      contentType: options.response.contentType,
       title: null,
-      canonical_url: null,
+      canonicalUrl: null,
       images: 0,
       stylesheets: 0,
-      linked_media: [],
-      scripts_stripped: 0,
-      styles_stripped: 0,
+      linkedMedia: [],
+      scriptsStripped: 0,
+      stylesStripped: 0,
     };
     const filename = originalFilenameFromUrl(options.response.url);
     if (filename) {
@@ -130,12 +130,12 @@ async function archivePdf(options: {
       "utf8",
     );
 
-    await rm(archivePath, { recursive: true, force: true });
-    await rename(stagingPath, archivePath);
+    await rm(archiveAbs, { recursive: true, force: true });
+    await rename(stagingPath, archiveAbs);
 
     options.log(`Archived to ${archiveRel}`);
 
-    return { ...meta, archive_path: archiveRel };
+    return { ...meta, archivePath: archiveRel };
   } catch (error) {
     await rm(stagingPath, { recursive: true, force: true });
     throw error;
@@ -153,17 +153,17 @@ async function archiveHtml(options: {
   omitStyles: boolean;
 }): Promise<FetchResult> {
   const html = decodeTextBody(options.response.body, options.response.charset);
-  const { archivePath, archiveRel } = archiveDirectory(
+  const { archiveAbs, archiveRel } = archiveDirectory(
     options.kbRoot,
     options.response.url,
     options.group,
   );
 
-  if (existsSync(archivePath)) {
+  if (existsSync(archiveAbs)) {
     options.log(`  replacing existing archive at ${archiveRel}`);
   }
 
-  const stagingPath = `${archivePath}.tmp-${randomBytes(4).toString("hex")}`;
+  const stagingPath = `${archiveAbs}.tmp-${randomBytes(4).toString("hex")}`;
 
   try {
     await mkdir(join(stagingPath, "images"), { recursive: true });
@@ -200,10 +200,10 @@ async function archiveHtml(options: {
       baseUrl: options.response.url,
     });
 
-    const canonical_url = readCanonicalUrl(root, options.response.url);
+    const canonicalUrl = readCanonicalUrl(root, options.response.url);
     const author = readAuthor(root);
     const publication = readPublication(root);
-    const linked_media = findLinkedMedia(root, options.response.url);
+    const linkedMedia = findLinkedMedia(root, options.response.url);
 
     const images = await rewriteImageTags({
       root,
@@ -220,17 +220,17 @@ async function archiveHtml(options: {
     injectOfflineCsp(root);
 
     const meta: FetchMeta = {
-      source_url: options.sourceUrl,
-      final_url: options.response.url,
+      sourceUrl: options.sourceUrl,
+      finalUrl: options.response.url,
       fetched: new Date().toISOString(),
-      content_type: options.response.contentType,
+      contentType: options.response.contentType,
       title,
-      canonical_url,
+      canonicalUrl,
       images: images.localizedCount,
       stylesheets: stylesheets.localizedCount,
-      linked_media,
-      scripts_stripped: scriptsStripped,
-      styles_stripped: stylesStripped,
+      linkedMedia,
+      scriptsStripped,
+      stylesStripped,
     };
     if (author) {
       meta.author = author;
@@ -246,12 +246,12 @@ async function archiveHtml(options: {
       "utf8",
     );
 
-    await rm(archivePath, { recursive: true, force: true });
-    await rename(stagingPath, archivePath);
+    await rm(archiveAbs, { recursive: true, force: true });
+    await rename(stagingPath, archiveAbs);
 
     options.log(`Archived to ${archiveRel}`);
 
-    return { ...meta, archive_path: archiveRel };
+    return { ...meta, archivePath: archiveRel };
   } catch (error) {
     await rm(stagingPath, { recursive: true, force: true });
     throw error;
@@ -343,7 +343,7 @@ function archiveDirectory(
   kbRoot: string,
   finalUrl: string,
   group?: string,
-): { archivePath: string; archiveRel: string } {
+): { archiveAbs: string; archiveRel: string } {
   const url = new URL(finalUrl);
   const domain = sanitizeDomain(url.hostname);
   const slug = slugFromUrl(url);
@@ -353,7 +353,7 @@ function archiveDirectory(
   }
   parts.push(slug);
   const archiveRel = parts.join("/");
-  return { archivePath: join(kbRoot, ...parts), archiveRel };
+  return { archiveAbs: join(kbRoot, ...parts), archiveRel };
 }
 
 // Maps image media types to conventional file extensions.

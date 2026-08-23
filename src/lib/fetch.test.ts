@@ -92,13 +92,13 @@ describe("fetchPage", () => {
     });
 
     expect(result.title).toBe("Test Article");
-    expect(result.canonical_url).toBe(PAGE_URL);
+    expect(result.canonicalUrl).toBe(PAGE_URL);
     expect(result.images).toBe(1);
     expect(result.stylesheets).toBe(1);
-    expect(result.linked_media).toEqual([{ url: PDF_URL, type: "pdf" }]);
-    expect(result.archive_path).toBe("raw/example.test/myblog/blog-post");
+    expect(result.linkedMedia).toEqual([{ url: PDF_URL, type: "pdf" }]);
+    expect(result.archivePath).toBe("raw/example.test/myblog/blog-post");
 
-    const archivePath = join(baseDir, result.archive_path);
+    const archivePath = join(baseDir, result.archivePath);
     const indexHtml = await readFile(join(archivePath, "index.html"), "utf8");
     expect(indexHtml).toContain(`src="images/${PNG_HASH}.png"`);
     expect(indexHtml).toContain(`data-original-src="${IMAGE_URL}"`);
@@ -122,9 +122,9 @@ describe("fetchPage", () => {
 
     const meta = JSON.parse(await readFile(join(archivePath, "meta.json"), "utf8"));
     expect(meta.stylesheets).toBe(1);
-    expect(meta.scripts_stripped).toBe(1);
-    expect(meta.styles_stripped).toBe(0);
-    expect(meta.archive_path).toBeUndefined();
+    expect(meta.scriptsStripped).toBe(1);
+    expect(meta.stylesStripped).toBe(0);
+    expect(meta.archivePath).toBeUndefined();
     expect(meta).not.toHaveProperty("author");
     expect(meta).not.toHaveProperty("publication");
 
@@ -177,7 +177,7 @@ describe("fetchPage", () => {
     });
 
     expect(result.images).toBe(2);
-    const archivePath = join(baseDir, result.archive_path);
+    const archivePath = join(baseDir, result.archivePath);
     const indexHtml = await readFile(join(archivePath, "index.html"), "utf8");
     expect(indexHtml).toContain(`src="images/${PNG_HASH}.png"`);
     expect(indexHtml.match(new RegExp(`src="images/${PNG_HASH}\\.png"`, "g"))).toHaveLength(2);
@@ -223,7 +223,7 @@ describe("fetchPage", () => {
       log: () => {},
     });
 
-    const archivePath = join(baseDir, result.archive_path);
+    const archivePath = join(baseDir, result.archivePath);
     const indexHtml = await readFile(join(archivePath, "index.html"), "utf8");
     expect(indexHtml).toContain(`src="images/${PNG_HASH}.png"`);
     expect(await readdir(join(archivePath, "images"))).toEqual([`${PNG_HASH}.png`]);
@@ -253,9 +253,9 @@ describe("fetchPage", () => {
       log: () => {},
     });
 
-    expect(result.scripts_stripped).toBe(0);
+    expect(result.scriptsStripped).toBe(0);
     const indexHtml = await readFile(
-      join(baseDir, result.archive_path, "index.html"),
+      join(baseDir, result.archivePath, "index.html"),
       "utf8",
     );
     expect(indexHtml).toContain("window.__plugin");
@@ -298,9 +298,9 @@ describe("fetchPage", () => {
       log: () => {},
     });
 
-    expect(result.styles_stripped).toBe(1);
+    expect(result.stylesStripped).toBe(1);
     const indexHtml = await readFile(
-      join(baseDir, result.archive_path, "index.html"),
+      join(baseDir, result.archivePath, "index.html"),
       "utf8",
     );
     expect(indexHtml).not.toContain("body{color:red}");
@@ -324,19 +324,19 @@ describe("fetchPage", () => {
       log: () => {},
     });
 
-    expect(result.archive_path).toBe("raw/example.test/papers/paper.pdf");
-    expect(result.content_type).toBe("application/pdf");
+    expect(result.archivePath).toBe("raw/example.test/papers/paper.pdf");
+    expect(result.contentType).toBe("application/pdf");
     expect(result.filename).toBe("paper.pdf");
     expect(result.title).toBeNull();
     expect(result.images).toBe(0);
-    expect(result.linked_media).toEqual([]);
+    expect(result.linkedMedia).toEqual([]);
 
-    const archivePath = join(baseDir, result.archive_path);
+    const archivePath = join(baseDir, result.archivePath);
     expect(await readFile(join(archivePath, "document.pdf"))).toEqual(pdfBody);
     const meta = JSON.parse(await readFile(join(archivePath, "meta.json"), "utf8"));
     expect(meta.filename).toBe("paper.pdf");
-    expect(meta.content_type).toBe("application/pdf");
-    expect(meta.archive_path).toBeUndefined();
+    expect(meta.contentType).toBe("application/pdf");
+    expect(meta.archivePath).toBeUndefined();
     const entries = await readdir(archivePath);
     expect(entries.sort()).toEqual(["document.pdf", "meta.json"]);
   });
@@ -358,9 +358,9 @@ describe("fetchPage", () => {
       log: () => {},
     });
 
-    expect(result.content_type).toBe("application/octet-stream");
+    expect(result.contentType).toBe("application/octet-stream");
     expect(result.filename).toBe("paper.pdf");
-    expect(await readFile(join(baseDir, result.archive_path, "document.pdf"))).toEqual(
+    expect(await readFile(join(baseDir, result.archivePath, "document.pdf"))).toEqual(
       pdfBody,
     );
   });

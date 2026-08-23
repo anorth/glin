@@ -13,9 +13,7 @@ index.md, .pi/SYSTEM.md, and .pi/skills/ from glin's templates, and symlinks
 .pi/extensions/glin to the installed glin extension.
 
 Refuses if .pi/ already exists — use glin upgrade to refresh tool-owned content.
-Does not run git init. AGENTS.md placeholders are left for you to fill in.
-
-Prints a JSON object to stdout with path, created, and stamped.`,
+Does not run git init. AGENTS.md placeholders are left for you to fill in.`,
     )
     .argument("[directory]", "Target directory", ".")
     .action(async (directory: string) => {
