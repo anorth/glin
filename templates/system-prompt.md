@@ -82,7 +82,8 @@ needs rather than assuming a vector store.
 - **`index.md` files** are human-readable markdown maps: each directory has one,
   listing its children with their descriptions so you (or another agent) can find your way.
   Read them to navigate. They are derived views of the frontmatter descriptions beneath them — the descriptions are the source of truth.
-  The convention for writing and rolling them up lives in the curation skill.
+  glin owns the listings: do not hand-edit them. After you add, move, or remove nodes, run `glin index`.
+  Prose above the listing on a directory's `index.md` is yours (a self-description); glin preserves it and rolls the first prose line up to the parent.
 - **The search index** is a separate, tool-internal structure (text and/or vector). 
   You never read it as a file — you query it through `glin search`. Its format is the tool's concern, not yours.
 
@@ -112,8 +113,9 @@ and roughly when to reach for it.
   `raw/` or `sources/`; `glin fetch` chosen URLs.
 - `glin search <query>` — query the search index over the KB to find relevant
   content.
-- `glin reindex` — regenerate `index.md` navigation files from frontmatter
-  descriptions.
+- `glin index` (`reindex`) — regenerate `index.md` navigation files from
+  frontmatter descriptions. Run after adding, moving, or removing nodes
+  under `sources/` or `wiki/`.
 - `glin backlinks` — rebuild the backlinks cache (which nodes cite or link to a
   given node).
 

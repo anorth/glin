@@ -56,7 +56,7 @@ Keep subcommands as thin wrappers over `lib/` functions, so the same logic is re
 ## Conventions
 
 - **TypeScript / Node**, chosen deliberately: it shares a toolchain with Pi, so the CLI and the future Pi extension can share code and glin can be embedded via Pi's SDK later.
-- **One binary, subcommands:** `glin fetch | search | reindex | backlinks | init | upgrade`. One thing to install and version; one `--help` surface.
+- **One binary, subcommands:** `glin fetch | search | index | backlinks | init | upgrade`. One thing to install and version; one `--help` surface.
 - **Convention over configuration.** Hardcode the KB skeleton (`raw/ sources/ wiki/ assets/`); do not parameterize layout or frontmatter yet. Promote something to config only when a real second KB needs it to differ.
 - **Language-agnostic invocation.** The agent calls glin by shelling out, so every command must be usable and legible from a plain terminal, with a clear `--help`.
 - **Local dev:** `npm link` to put `glin` on PATH; edits go live without reinstalling.

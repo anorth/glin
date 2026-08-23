@@ -50,6 +50,10 @@ If the tool reports token counts or cost, pass those through.
 
 Call `extract` once per archive.
 
+## After
+
+Run `glin index` so the new nodes appear in navigation.
+
 ## Scope
 
-Extraction into `sources/` only — not fetch, wiki, or indexes — unless explicitly asked.
+Extraction into `sources/` only — not fetch or wiki — unless explicitly asked.
