@@ -254,9 +254,8 @@ There are two unrelated things called "index"; keep them distinct:
   which may hold `okf_version` and nothing else — so `glin reindex` must not stamp
   `type`/frontmatter into them. The listing format is OKF's bullet form:
   `* [Title](url) - description`.
-- **The search index** is a *tool-internal* structure (text and/or vector). The
-  agent never reads it as a file; it queries it through `glin search`. Its format
-  is glin's concern only.
+- **`glin search`** is a live full-text scan of concept bodies and frontmatter
+  under `sources/` and `wiki/`. There is no persisted search-index file.
 
 ### 4.8 Media & assets
 
@@ -334,8 +333,8 @@ Every piece of "how it works" lives in exactly one of three places, decided by t
 questions in order:
 
 1. *Does the agent need this in context at all?* If not → it lives in **glin's
-   code** (e.g. the `index.md` byte format, the search index format, fetch
-   internals).
+   code** (e.g. the `index.md` byte format, how `glin search` scans and ranks,
+   fetch internals).
 2. If yes, *is it the same across all KBs?* If yes → **tool-owned content**
    (ships with glin, safe to refresh on upgrade). If KB-specific → **the
    human-owned sections of the KB's `AGENTS.md`** (never overwritten).
@@ -377,8 +376,8 @@ block so non-glin agents can discover them.
   tool-maintained, node types and frontmatter, kb-root links and `# Citations`,
   `index.md` navigation, `okf_version`, and a link to the OKF spec. The managed
   block reiterates the OKF-shaped rules an agent must follow; it does not require
-  reading the external spec. It does not cover media/assets policy or the search
-  index (those stay in `SYSTEM.md` / tools).
+  reading the external spec. It does not cover media/assets policy or search
+  (those stay in `SYSTEM.md` / tools).
 
 Detailed *procedures* (fetching, extracting, curating, health checks) live in
 **skills**, loaded on demand, not in the always-resident prompts.
@@ -423,8 +422,8 @@ glin/
 A convention worth applying to every command: if a command's product is a
 **document**, print it raw to stdout (`read`); if its product is a **record of an
 action**, print JSON to stdout (`fetch`). Human logs/progress go to stderr, keeping
-stdout cleanly machine-parseable for the calling agent. (`search` results are
-arguably a record → JSON; decide deliberately when building it.)
+stdout cleanly machine-parseable for the calling agent. `search` prints a
+markdown listing by default (a document); `--json` is the record form.
 
 ### 8.2 Planned
 
@@ -440,7 +439,7 @@ arguably a record → JSON; decide deliberately when building it.)
 - **`glin fetch <url>`** — fetch a single article from the web into `raw/`.
 - **`glin reindex`** — regenerate `index.md` files from frontmatter summaries.
 - **`glin backlinks`** — rebuild the backlinks cache.
-- **`glin search <query>`** — query the search index over the KB.
+- **`glin search <query>`** — full-text search over `sources/` and `wiki/`.
 
 ---
 

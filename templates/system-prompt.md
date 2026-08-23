@@ -84,8 +84,8 @@ needs rather than assuming a vector store.
   Read them to navigate. They are derived views of the frontmatter descriptions beneath them — the descriptions are the source of truth.
   glin owns the listings: do not hand-edit them. After you add, move, or remove nodes, run `glin index`.
   Prose above the listing on a directory's `index.md` is yours (a self-description); glin preserves it and rolls the first prose line up to the parent.
-- **The search index** is a separate, tool-internal structure (text and/or vector). 
-  You never read it as a file — you query it through `glin search`. Its format is the tool's concern, not yours.
+- **`glin search`** scans concept bodies and frontmatter under `sources/` and `wiki/`.
+  You never read a search-index file — there isn't one. Query through the tool.
 
 ## Media and assets
 
@@ -111,8 +111,9 @@ and roughly when to reach for it.
 - `glin web-search <query>` — discover candidate source URLs via web search (JSON
   to stdout, no disk writes). Triage only — never archive Exa snippets into
   `raw/` or `sources/`; `glin fetch` chosen URLs.
-- `glin search <query>` — query the search index over the KB to find relevant
-  content.
+- `glin search "<query>"` — full-text search over `sources/` and `wiki/` (markdown
+  listing to stdout; `--json` for a JSON array). Quote the query; default is
+  case-insensitive AND of literal terms. See `--help`.
 - `glin index` (`reindex`) — regenerate `index.md` navigation files from
   frontmatter descriptions. Run after adding, moving, or removing nodes
   under `sources/` or `wiki/`.
@@ -129,5 +130,5 @@ The glin Pi extension (when installed) also provides:
   extension tools, but not nested `subagent`. Optional `agent` selects a specialized
   bundled agent when one exists; optional `files` are inlined into the prompt.
 
-Backlinks and the search index are regenerable caches derived from the files; the
-files are always authoritative.
+Backlinks are a regenerable cache derived from the files; the files are always
+authoritative.

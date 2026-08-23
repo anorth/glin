@@ -1,11 +1,16 @@
 import { existsSync } from "node:fs";
 import { readdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import {
+  CONCEPT_TREES,
+  isConceptMarkdown,
+  oneLine,
+  posixJoin,
+  stringField,
+  stripMd,
+} from "./concepts.js";
 import { parseFrontmatter } from "./frontmatter.js";
 import { requireBaseDir } from "./kb.js";
-
-const CONCEPT_TREES = ["sources", "wiki"] as const;
-const RESERVED_MD = new Set(["index.md", "log.md"]);
 
 export type ReindexResult = {
   written: string[];
@@ -75,7 +80,7 @@ async function reindexDir(
     }
 
     const files = dirents
-      .filter((d) => d.isFile() && d.name.endsWith(".md") && !RESERVED_MD.has(d.name))
+      .filter((d) => d.isFile() && isConceptMarkdown(d.name))
       .sort((a, b) => a.name.localeCompare(b.name));
     for (const file of files) {
       const text = await readFile(join(absDir, file.name), "utf8");
@@ -167,19 +172,3 @@ function isListItem(line: string): boolean {
   return line.startsWith("* ") || line.startsWith("- ") || line === "*" || line === "-";
 }
 
-function stringField(data: Record<string, unknown>, key: string): string | undefined {
-  const value = data[key];
-  return typeof value === "string" && value.trim() !== "" ? value.trim() : undefined;
-}
-
-function oneLine(value: string): string {
-  return value.replace(/\s+/g, " ").trim();
-}
-
-function stripMd(filename: string): string {
-  return filename.endsWith(".md") ? filename.slice(0, -3) : filename;
-}
-
-function posixJoin(...parts: string[]): string {
-  return parts.filter(Boolean).join("/");
-}
