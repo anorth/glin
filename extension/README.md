@@ -14,7 +14,7 @@ extract({
 })
 ```
 
-`archive` and `output` are KB-relative. Default model: `google/gemini-3.1-flash-lite`
+`archive` and `output` are KB-relative. Default model: `openai/gpt-5.6-luna`
 (optional `model` override). Prompts: `extract-prompt.md`, `summary-prompt.md`.
 
 ## Subagent

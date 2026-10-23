@@ -41,7 +41,7 @@ import { Type } from "typebox";
 import { adoptSourceAssets, findInvalidSourceImageRefs } from "../src/lib/assets.ts";
 import { extractPdfText } from "../src/lib/pdf.ts";
 
-const DEFAULT_MODEL = "google/gemini-3.1-flash-lite";
+const DEFAULT_MODEL = "openai/gpt-5.6-luna";
 const EXTENSION_DIR = dirname(fileURLToPath(import.meta.url));
 const EXTRACT_PROMPT_PATH = join(EXTENSION_DIR, "extract-prompt.md");
 const EXTRACT_PDF_PROMPT_PATH = join(EXTENSION_DIR, "extract-pdf-prompt.md");
