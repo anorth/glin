@@ -20,15 +20,13 @@
  */
 
 import type { AgentToolResult } from "@earendil-works/pi-agent-core";
-import type { Message } from "@earendil-works/pi-ai";
-import type { Model } from "@earendil-works/pi-ai/compat";
+import type { Api, Message, Model } from "@earendil-works/pi-ai";
 import {
-  AuthStorage,
   createAgentSession,
   DefaultResourceLoader,
   getAgentDir,
   getMarkdownTheme,
-  ModelRegistry,
+  ModelRuntime,
   SessionManager,
   type ExtensionAPI,
   type ExtensionContext,
@@ -97,8 +95,7 @@ type ArchiveMeta = {
   publication?: unknown;
 };
 
-/** Pi accepts isError on tool results at runtime; AgentToolResult typings omit it. */
-type ExtractToolResult = AgentToolResult<ExtractDetails> & { isError?: boolean };
+type ExtractToolResult = AgentToolResult<ExtractDetails>;
 
 /** Injectable toolless LLM call (body + summary). Default talks to Pi in-process. */
 export type ExtractModelCall = (args: {
@@ -144,7 +141,7 @@ export function registerExtractTool(pi: ExtensionAPI): void {
 
     renderResult(result, { expanded }, theme) {
       const details = result.details as ExtractDetails | undefined;
-      const failed = Boolean((result as ExtractToolResult).isError);
+      const failed = Boolean(result.isError);
       const icon = failed
         ? theme.fg("error", "✗")
         : theme.fg("success", "✓");
@@ -310,7 +307,7 @@ export async function runExtract(
 
   let modelCall = deps.modelCall;
   if (!modelCall) {
-    const resolved = resolveDefaultModelCall(modelSpec, signal);
+    const resolved = await resolveDefaultModelCall(modelSpec, signal);
     if ("error" in resolved) {
       return fail(resolved.error);
     }
@@ -467,13 +464,21 @@ export async function runExtract(
 }
 
 /** Resolve the default in-process model call, or an error if the model is unknown. */
-function resolveDefaultModelCall(
+async function resolveDefaultModelCall(
   modelSpec: string,
   signal: AbortSignal | undefined,
-): { modelId: string; modelCall: ExtractModelCall } | { error: string } {
-  const authStorage = AuthStorage.create();
-  const modelRegistry = ModelRegistry.create(authStorage);
-  const model = resolveModel(modelRegistry, modelSpec);
+): Promise<{ modelId: string; modelCall: ExtractModelCall } | { error: string }> {
+  let modelRuntime: ModelRuntime;
+  try {
+    modelRuntime = await ModelRuntime.create({ signal });
+  } catch (error) {
+    if (signal?.aborted) {
+      return { error: "Extract was aborted." };
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    return { error: `Failed to load models: ${message}` };
+  }
+  const model = resolveModel(modelRuntime, modelSpec);
   if (!model) {
     return { error: `Unknown model: ${modelSpec}` };
   }
@@ -481,8 +486,7 @@ function resolveDefaultModelCall(
   const modelCall: ExtractModelCall = (args) =>
     runToollessModelCall({
       model,
-      authStorage,
-      modelRegistry,
+      modelRuntime,
       signal,
       systemPrompt: args.systemPrompt,
       userPrompt: args.userPrompt,
@@ -664,16 +668,16 @@ function resolveWithinKb(kbRoot: string, relPath: string): string | null {
 
 /** Parse provider/id and look up the model in the registry. */
 function resolveModel(
-  modelRegistry: ModelRegistry,
+  modelRuntime: ModelRuntime,
   spec: string,
-): Model<string> | undefined {
+): Model<Api> | undefined {
   const slash = spec.indexOf("/");
   if (slash <= 0 || slash === spec.length - 1) {
     return undefined;
   }
   const provider = spec.slice(0, slash);
   const id = spec.slice(slash + 1);
-  return modelRegistry.find(provider, id);
+  return modelRuntime.getModel(provider, id);
 }
 
 /**
@@ -681,9 +685,8 @@ function resolveModel(
  * Isolated from KB skills/extensions/context; no tools available to the model.
  */
 async function runToollessModelCall(options: {
-  model: Model<string>;
-  authStorage: AuthStorage;
-  modelRegistry: ModelRegistry;
+  model: Model<Api>;
+  modelRuntime: ModelRuntime;
   systemPrompt: string;
   userPrompt: string;
   signal: AbortSignal | undefined;
@@ -712,8 +715,7 @@ async function runToollessModelCall(options: {
     model: options.model,
     thinkingLevel: "off",
     noTools: "all",
-    authStorage: options.authStorage,
-    modelRegistry: options.modelRegistry,
+    modelRuntime: options.modelRuntime,
     resourceLoader,
     sessionManager: SessionManager.inMemory(),
   });
