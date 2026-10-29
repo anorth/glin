@@ -77,3 +77,8 @@ bd.db
 
 # Interactions audit log (local-only)
 interactions.jsonl
+
+# Added by bd (missing required patterns)
+*.gate.lock*
+last_pull
+dolt-server-config.yaml
